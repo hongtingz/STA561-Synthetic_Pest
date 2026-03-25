@@ -17,13 +17,19 @@ A+ requirement: fully automated pipeline runnable at scale on the Duke compute c
 
 ## Current Focus
 
-**Local demo first** — build a working Blender scene locally before scaling to cluster or adding the ViT training step.
+**Local pipeline complete** — full end-to-end pipeline is working locally. Next step: run ViT training, evaluate metrics, then scale to DCC if needed.
 
-Demo scope:
-- Kitchen floor/room scene in Blender
-- Animated pest (mouse) moving along a path
-- Render frames + export bounding boxes
-- Run via GUI (Blender Scripting tab) for easy iteration
+Pipeline stages (all implemented):
+1. `blender --background --python demo/render_demo.py` → renders 60 frames + raw annotations (`output/annotations.json`)
+2. `python demo/to_coco.py` → converts to COCO format (`output/coco_annotations.json`)
+3. `python train_vit.py` → fine-tunes ViT, evaluates TDR/FPR, saves model to `output/vit_model/`
+
+Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `output/viz/`
+
+## Known Issues / Fixes Applied
+
+- Mouse animation path was `x=-3→x=3`, causing frames 1–35 to have off-screen bboxes (negative widths). Fixed to `x=-1.5→x=1.5` so mouse stays within camera frustum all 60 frames.
+- `visualize.py` and `to_coco.py` both guard against invalid bboxes (`width <= 0 or height <= 0`).
 
 ## Environment
 
@@ -38,3 +44,6 @@ Demo scope:
 - For demo: use Blender GUI scripting tab; for production: headless via `blender --background --python script.py`
 - Annotations are generated programmatically from known 3D ground truth (no human labeling)
 - Target COCO-format JSON for compatibility with standard detection frameworks
+- ViT fine-tuning uses crop-based binary classification (pest/no-pest) — not full object detection — because 60 frames is too little data for a full detector
+- Negative samples: 3 random background crops per frame that don't overlap any annotated bbox
+- Training: AdamW lr=2e-5, batch 8, 10 epochs, 80/20 train/val split
