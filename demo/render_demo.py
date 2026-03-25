@@ -84,7 +84,7 @@ def build_mouse():
         radius=0.15,
         segments=16,
         ring_count=8,
-        location=(-3, 0, 0.15),
+        location=(-1.5, 0, 0.15),
     )
     mouse = bpy.context.active_object
     mouse.name = "Mouse"
@@ -98,14 +98,14 @@ def animate_mouse(mouse):
     """Walk from left to right across the kitchen floor."""
     scene = bpy.context.scene
 
-    mouse.location = (-3, 0, 0.15)
+    mouse.location = (-1.5, 0, 0.15)
     mouse.keyframe_insert(data_path="location", frame=1)
 
     # Mid-point slight curve for realism
-    mouse.location = (0, -0.5, 0.15)
+    mouse.location = (0, -0.3, 0.15)
     mouse.keyframe_insert(data_path="location", frame=NUM_FRAMES // 2)
 
-    mouse.location = (3, 0, 0.15)
+    mouse.location = (1.5, 0, 0.15)
     mouse.keyframe_insert(data_path="location", frame=NUM_FRAMES)
 
     # BEZIER is the default interpolation in Blender 5.0
