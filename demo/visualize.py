@@ -35,6 +35,8 @@ def draw_frame(anno):
             continue
         label = pest["label"]
         b = pest["bbox"]
+        if b["width"] <= 0 or b["height"] <= 0:
+            continue
         color = LABEL_COLORS.get(label, DEFAULT_COLOR)
 
         # Bounding box rectangle
