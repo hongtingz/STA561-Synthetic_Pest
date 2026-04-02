@@ -17,14 +17,21 @@ A+ requirement: fully automated pipeline runnable at scale on the Duke compute c
 
 ## Current Focus
 
-**Local pipeline complete** — full end-to-end pipeline is working locally. Next step: run ViT training, evaluate metrics, then scale to DCC if needed.
+**Local pipeline complete and evaluated.** ViT training passed targets (TDR=100%, FPR=0%). Next step: scale to DCC and improve sim-to-real transfer.
 
 Pipeline stages (all implemented):
 1. `blender --background --python demo/render_demo.py` → renders 60 frames + raw annotations (`output/annotations.json`)
 2. `python demo/to_coco.py` → converts to COCO format (`output/coco_annotations.json`)
 3. `python train_vit.py` → fine-tunes ViT, evaluates TDR/FPR, saves model to `output/vit_model/`
+4. `python infer.py path/to/image.jpg` → runs multi-scale sliding window inference, saves annotated result to `output/infer_result.jpg`
 
 Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `output/viz/`
+
+## Training Results
+
+- TDR: 100%, FPR: 0% — **PASS** (targets: ≥80% TDR, <5% FPR)
+- Evaluated on synthetic val split (80/20 split of 60 rendered frames)
+- Note: metrics are on synthetic data only; sim-to-real transfer not yet validated
 
 ## Known Issues / Fixes Applied
 
@@ -47,3 +54,4 @@ Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `outpu
 - ViT fine-tuning uses crop-based binary classification (pest/no-pest) — not full object detection — because 60 frames is too little data for a full detector
 - Negative samples: 3 random background crops per frame that don't overlap any annotated bbox
 - Training: AdamW lr=2e-5, batch 8, 10 epochs, 80/20 train/val split
+- Inference (`infer.py`): multi-scale sliding window (60/100/150/200px), each crop resized to 224×224, NMS applied — needed because mouse bbox (~61×42px) is much smaller than 224×224
