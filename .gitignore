@@ -2,3 +2,4 @@
 output/*
 *.pdf
 .DS_Store
+kitchen_images/*
