@@ -17,7 +17,7 @@ A+ requirement: fully automated pipeline runnable at scale on the Duke compute c
 
 ## Current Focus
 
-**Local pipeline complete and evaluated.** ViT training passed targets (TDR=100%, FPR=0%). Next step: scale to DCC and improve sim-to-real transfer.
+**Local pipeline complete and evaluated.** ViT training passed targets (TDR=100%, FPR=0%). Next step: scale to DCC (add rat/cockroach pests there) and improve sim-to-real transfer.
 
 Pipeline stages (all implemented):
 1. `blender --background --python demo/render_demo.py` → renders 60 frames + raw annotations (`output/annotations.json`)
@@ -26,6 +26,15 @@ Pipeline stages (all implemented):
 4. `python infer.py path/to/image.jpg` → runs multi-scale sliding window inference, saves annotated result to `output/infer_result.jpg`
 
 Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `output/viz/`
+
+## Rendering
+
+Local demo uses **Cycles renderer** (64 samples + denoising, Filmic tone mapping) for realistic output. The scene includes:
+- Procedural materials: checker tile floor, painted drywall walls, wood-grain cabinets, granite countertop, fur-textured mouse
+- Kitchen geometry: lower/upper cabinets, countertop, fridge, side table with legs, baseboards
+- 4-light setup: warm overhead key, under-cabinet strip, cool side fill (window sim), rim light
+- Multi-part mouse model: body, head, snout, nose, ears, eyes, bezier tail
+- Local demo is **mouse-only**; rat and cockroach models will be added on DCC
 
 ## Training Results
 
@@ -37,6 +46,7 @@ Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `outpu
 
 - Mouse animation path was `x=-3→x=3`, causing frames 1–35 to have off-screen bboxes (negative widths). Fixed to `x=-1.5→x=1.5` so mouse stays within camera frustum all 60 frames.
 - `visualize.py` and `to_coco.py` both guard against invalid bboxes (`width <= 0 or height <= 0`).
+- Pylance warnings on `bpy` node socket attributes (e.g. `default_value`, `color_ramp`) are false positives — `bpy` stubs are incomplete but the code runs correctly in Blender.
 
 ## Environment
 
