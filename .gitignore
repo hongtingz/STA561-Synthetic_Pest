@@ -3,3 +3,12 @@ output/*
 *.pdf
 .DS_Store
 kitchen_images/*
+
+# Python / uv
+.venv
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
