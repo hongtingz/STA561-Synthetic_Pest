@@ -2,7 +2,7 @@
 set -euo pipefail
 
 JOB_NAME="${1:-pipeline}"
-CONFIG_PATH="${2:-configs/base.json}"
+CONFIG_PATH="${2:-configs/dcc_gpu.json}"
 SCRIPT_PATH="jobs/${JOB_NAME}.sbatch"
 
 if [[ ! -f "$SCRIPT_PATH" ]]; then

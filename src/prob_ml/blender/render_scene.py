@@ -30,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--width", type=int, required=True)
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--samples", type=int, required=True)
+    parser.add_argument("--render-device", default="CPU")
+    parser.add_argument("--compute-backend", default="AUTO")
     return parser.parse_args(argv)
 
 
@@ -168,10 +170,47 @@ def setup_lighting(layout: dict) -> None:
             obj.data.size = 3.0
 
 
+def _configure_cycles_gpu(compute_backend: str) -> bool:
+    cycles_addon = bpy.context.preferences.addons.get("cycles")
+    if cycles_addon is None:
+        print("Cycles add-on preferences unavailable; falling back to CPU.")
+        return False
+
+    preferences = cycles_addon.preferences
+    backend = compute_backend.upper()
+    if backend != "AUTO":
+        try:
+            preferences.compute_device_type = backend
+        except (TypeError, ValueError) as exc:
+            print(f"Unsupported compute backend '{backend}'; falling back to CPU: {exc}")
+            return False
+
+    try:
+        preferences.get_devices()
+    except Exception as exc:  # pragma: no cover - Blender runtime dependent
+        print(f"Could not enumerate Cycles devices; falling back to CPU: {exc}")
+        return False
+
+    gpu_count = 0
+    for device in getattr(preferences, "devices", []):
+        if getattr(device, "type", "CPU") == "CPU":
+            device.use = False
+            continue
+        device.use = True
+        gpu_count += 1
+
+    if gpu_count == 0:
+        print("No GPU devices detected for Cycles; falling back to CPU.")
+        return False
+
+    active_backend = getattr(preferences, "compute_device_type", backend)
+    print(f"Configured Cycles GPU rendering: backend={active_backend} devices={gpu_count}")
+    return True
+
+
 def setup_render(args: argparse.Namespace) -> None:
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
-    scene.cycles.device = "CPU"
     scene.cycles.samples = args.samples
     scene.cycles.use_denoising = True
     scene.render.resolution_x = args.width
@@ -182,6 +221,13 @@ def setup_render(args: argparse.Namespace) -> None:
     scene.frame_end = args.fps * args.seconds
     scene.view_settings.view_transform = "Filmic"
     scene.view_settings.look = "Medium Contrast"
+
+    render_device = args.render_device.upper()
+    if render_device == "GPU" and _configure_cycles_gpu(args.compute_backend):
+        scene.cycles.device = "GPU"
+    else:
+        scene.cycles.device = "CPU"
+        print("Configured Cycles rendering on CPU.")
 
 
 def compute_bbox(obj, camera, scene, width: int, height: int):

@@ -50,7 +50,7 @@ def resolve_render_paths(config: PipelineConfig) -> dict[str, Path]:
         ),
         "layout_preview": _resolve_path(
             config,
-            inputs.get("layout_preview", "artifacts/layout/layout_preview.png"),
+            inputs.get("layout_preview", "artifacts/layout/layout_preview.svg"),
         ),
         "frames_dir": _resolve_path(config, dataset["frames_dir"]),
         "annotations": _resolve_path(config, dataset["annotations_raw"]),
@@ -110,6 +110,10 @@ def build_blender_command(config: PipelineConfig, resolved_paths: dict[str, Path
         str(int(render.get("resolution_height", 720))),
         "--samples",
         str(int(render.get("samples", 64))),
+        "--render-device",
+        str(render.get("render_device", "CPU")).upper(),
+        "--compute-backend",
+        str(render.get("compute_backend", "AUTO")).upper(),
     ]
 
 
@@ -146,6 +150,8 @@ def run_render(config: PipelineConfig) -> None:
     print(f"  frames_dir={resolved_paths['frames_dir']}")
     print(f"  annotations={resolved_paths['annotations']}")
     print(f"  pests={render.get('pest_types')}")
+    print(f"  render_device={str(render.get('render_device', 'CPU')).upper()}")
+    print(f"  compute_backend={str(render.get('compute_backend', 'AUTO')).upper()}")
     print("  layout_cues=content-driven from kitchen photo")
     print(
         "  layout_summary="

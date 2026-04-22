@@ -10,9 +10,10 @@
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
-CONFIG_PATH="${CONFIG_PATH:-configs/base.json}"
+CONFIG_PATH="${CONFIG_PATH:-configs/dcc_gpu.json}"
 
 cd "$PROJECT_ROOT"
 
 uv sync
+echo "Running render job with CONFIG_PATH=$CONFIG_PATH"
 uv run pest-pipeline render --config "$CONFIG_PATH"

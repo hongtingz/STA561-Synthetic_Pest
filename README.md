@@ -40,6 +40,16 @@ uv run pest-pipeline plan --config configs/base.json
 uv run pest-pipeline dcc-submit --config configs/base.json --job pipeline
 ```
 
+`configs/base.json` is kept conservative for local smoke tests and uses CPU
+rendering. `configs/dcc_gpu.json` is the DCC-oriented variant that switches
+Blender to GPU rendering with the `CUDA` backend.
+
+For cluster usage notes and submission examples, see
+[docs/dcc_usage.md](/Users/hongting/projects/prob_ml/docs/dcc_usage.md).
+
+For the original course project description in Markdown form, see
+[docs/project_spec.md](/Users/hongting/projects/prob_ml/docs/project_spec.md).
+
 ## Repository Layout
 
 ```text

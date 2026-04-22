@@ -163,6 +163,8 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
                 "backend": "blender",
                 "blender_executable": "blender",
                 "blender_script": "src/prob_ml/blender/render_scene.py",
+                "render_device": "GPU",
+                "compute_backend": "CUDA",
                 "fps": 30,
                 "seconds": 30,
                 "resolution_width": 1280,
@@ -187,6 +189,10 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
     assert command[0] == "blender"
     assert "--layout-spec" in command
     assert str(resolved_paths["layout_spec"]) in command
+    assert "--render-device" in command
+    assert "GPU" in command
+    assert "--compute-backend" in command
+    assert "CUDA" in command
 
 
 def test_photo_cues_change_layout_geometry(tmp_path: Path) -> None:
