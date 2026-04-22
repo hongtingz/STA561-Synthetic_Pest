@@ -5,7 +5,8 @@
   },
   "inputs": {
     "kitchen_photo": "data/inputs/kitchen.jpg",
-    "layout_spec": "data/intermediate/layout/layout.json"
+    "layout_spec": "data/intermediate/layout/layout.json",
+    "layout_diagnostics": "artifacts/layout/layout_diagnostics.json"
   },
   "render": {
     "backend": "blender",

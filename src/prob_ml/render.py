@@ -8,7 +8,13 @@ import subprocess
 from typing import Dict, List
 
 from prob_ml.config import PipelineConfig
-from prob_ml.layout import build_layout_spec, save_layout_spec
+from prob_ml.layout import (
+    build_layout_spec,
+    extract_photo_cues,
+    save_layout_diagnostics,
+    save_layout_spec,
+    summarize_layout_decisions,
+)
 
 
 def _resolve_path(config: PipelineConfig, relative_path: str) -> Path:
@@ -38,6 +44,10 @@ def resolve_render_paths(config: PipelineConfig) -> Dict[str, Path]:
     return {
         "photo": _resolve_path(config, inputs["kitchen_photo"]),
         "layout_spec": _resolve_path(config, inputs["layout_spec"]),
+        "layout_diagnostics": _resolve_path(
+            config,
+            inputs.get("layout_diagnostics", "artifacts/layout/layout_diagnostics.json"),
+        ),
         "frames_dir": _resolve_path(config, dataset["frames_dir"]),
         "annotations": _resolve_path(config, dataset["annotations_raw"]),
         "blender_script": _resolve_path(
@@ -57,13 +67,16 @@ def ensure_layout_spec(config: PipelineConfig, resolved_paths: Dict[str, Path]) 
         )
 
     photo_size = _load_photo_size(photo_path)
+    photo_cues = extract_photo_cues(photo_path)
     layout_spec = build_layout_spec(
         photo_path=photo_path,
         photo_size=photo_size,
+        photo_cues=photo_cues,
         pest_types=render.get("pest_types", []),
         scene_seed=int(render.get("scene_seed", 42)),
     )
     save_layout_spec(layout_spec, resolved_paths["layout_spec"])
+    save_layout_diagnostics(layout_spec, resolved_paths["layout_diagnostics"])
     return resolved_paths["layout_spec"]
 
 
@@ -99,22 +112,41 @@ def run_render(config: PipelineConfig) -> None:
     """Generate a layout spec and prepare the Blender render command."""
     render = config.section("render")
     resolved_paths = resolve_render_paths(config)
-    for key in ["layout_spec", "frames_dir", "annotations"]:
+    for key in ["layout_spec", "layout_diagnostics", "frames_dir", "annotations"]:
         path = resolved_paths[key]
         target_dir = path if path.suffix == "" else path.parent
         target_dir.mkdir(parents=True, exist_ok=True)
 
     layout_spec_path = ensure_layout_spec(config, resolved_paths)
+    photo_size = _load_photo_size(resolved_paths["photo"])
+    photo_cues = extract_photo_cues(resolved_paths["photo"])
+    diagnostics = summarize_layout_decisions(
+        build_layout_spec(
+            photo_path=resolved_paths["photo"],
+            photo_size=photo_size,
+            photo_cues=photo_cues,
+            pest_types=render.get("pest_types", []),
+            scene_seed=int(render.get("scene_seed", 42)),
+        )
+    )
     command = build_blender_command(config, resolved_paths)
 
     print("Render stage")
     print(f"  backend={render.get('backend')}")
     print(f"  kitchen_photo={resolved_paths['photo']}")
     print(f"  layout_spec={layout_spec_path}")
+    print(f"  layout_diagnostics={resolved_paths['layout_diagnostics']}")
     print(f"  blender_script={resolved_paths['blender_script']}")
     print(f"  frames_dir={resolved_paths['frames_dir']}")
     print(f"  annotations={resolved_paths['annotations']}")
     print(f"  pests={render.get('pest_types')}")
+    print("  layout_cues=content-driven from kitchen photo")
+    print(
+        "  layout_summary="
+        f"room=({diagnostics['room']['width']}x{diagnostics['room']['depth']}x{diagnostics['room']['height']}), "
+        f"fridge_side={diagnostics['fixture_summary']['fridge_side']}, "
+        f"lens={diagnostics['camera']['lens_mm']}mm"
+    )
     print("  blender_command=")
     print("    " + " ".join(shlex.quote(part) for part in command))
 
