@@ -33,6 +33,7 @@ Use the Python CLI if you want the generated `sbatch` command:
 
 ```bash
 uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render-batch
 uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job train
 uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job pipeline
 ```
@@ -41,6 +42,7 @@ Use the helper shell script if you want direct submission:
 
 ```bash
 bash scripts/dcc_submit.sh render configs/dcc_gpu.json
+bash scripts/dcc_submit.sh render-batch configs/dcc_gpu.json
 bash scripts/dcc_submit.sh train configs/dcc_gpu.json
 bash scripts/dcc_submit.sh pipeline configs/dcc_gpu.json
 ```
@@ -55,18 +57,21 @@ bash scripts/dcc_submit.sh render
 
 - `jobs/render.sbatch`
   Runs `uv run pest-pipeline render --config ...`
+- `jobs/render-batch.sbatch`
+  Runs `uv run pest-pipeline render-batch --config ...`
 - `jobs/train.sbatch`
   Runs `uv run pest-pipeline train --config ...`
 - `jobs/pipeline.sbatch`
   Runs the whole local pipeline entrypoint in one Slurm job
 
-All three job scripts now default to `configs/dcc_gpu.json`.
+All DCC job scripts now default to `configs/dcc_gpu.json`.
 
 ## Logs
 
 Slurm logs are written to:
 
 - `logs/dcc/render-<jobid>.out`
+- `logs/dcc/render-batch-<jobid>.out`
 - `logs/dcc/train-<jobid>.out`
 - `logs/dcc/pipeline-<jobid>.out`
 
@@ -75,13 +80,15 @@ Useful commands after submission:
 ```bash
 squeue -u "$USER"
 tail -f logs/dcc/render-<jobid>.out
+tail -f logs/dcc/render-batch-<jobid>.out
 tail -f logs/dcc/train-<jobid>.out
 ```
 
 ## Current Caveats
 
 - The current `render` stage is validated for smoke tests and small runs. It is
-  not yet a manifest-driven batch renderer over all kitchen images.
+  now complemented by a manifest-driven `render-batch` entrypoint, but it still
+  needs more batching and packaging work before full-scale production runs.
 - The current `train` and `infer` stages are still scaffolds, so DCC is most
   useful right now for render experiments and environment validation.
 - Full-scale dataset generation will likely need job arrays and longer Slurm
@@ -101,7 +108,13 @@ uv run pest-pipeline plan --config configs/dcc_gpu.json
 bash scripts/dcc_submit.sh render configs/dcc_gpu.json
 ```
 
-3. Inspect the output log and generated artifacts.
+3. Run a limited batch render:
 
-4. Only after that, scale the render stage up and then wire in batch manifest
+```bash
+bash scripts/dcc_submit.sh render-batch configs/dcc_gpu.json
+```
+
+4. Inspect the output logs and generated artifacts.
+
+5. Only after that, scale the render stage up and then wire in batch manifest
 processing.

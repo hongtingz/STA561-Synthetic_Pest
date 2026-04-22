@@ -11,7 +11,7 @@ from prob_ml.dataset import run_convert
 from prob_ml.dcc import build_sbatch_command, validate_job_scripts
 from prob_ml.infer import run_infer
 from prob_ml.pipeline import ensure_runtime_directories, render_plan
-from prob_ml.render import run_render
+from prob_ml.render import run_render, run_render_batch
 from prob_ml.train import run_train
 
 
@@ -27,7 +27,15 @@ def build_parser() -> argparse.ArgumentParser:
             help="Path to the runtime JSON config file.",
         )
 
-    for name in ["plan", "render", "convert", "train", "infer", "pipeline"]:
+    for name in [
+        "plan",
+        "render",
+        "render-batch",
+        "convert",
+        "train",
+        "infer",
+        "pipeline",
+    ]:
         add_config_argument(subparsers.add_parser(name))
 
     doctor_parser = subparsers.add_parser("doctor")
@@ -42,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     dcc_parser.add_argument(
         "--job",
         default="pipeline",
-        choices=["pipeline", "render", "train"],
+        choices=["pipeline", "render", "render-batch", "train"],
         help="Which Slurm job script to target.",
     )
     return parser
@@ -82,6 +90,10 @@ def main(argv: list[str] | None = None) -> int:
         run_render(config)
         return 0
 
+    if args.command == "render-batch":
+        run_render_batch(config)
+        return 0
+
     if args.command == "convert":
         run_convert(config)
         return 0
@@ -98,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
         print(render_plan(config))
         print("\n== render ==")
         run_render(config)
+        print("\n== render-batch ==")
+        run_render_batch(config)
         print("\n== convert ==")
         run_convert(config)
         print("\n== train ==")

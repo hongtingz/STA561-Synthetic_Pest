@@ -45,10 +45,10 @@ rendering. `configs/dcc_gpu.json` is the DCC-oriented variant that switches
 Blender to GPU rendering with the `CUDA` backend.
 
 For cluster usage notes and submission examples, see
-[docs/dcc_usage.md](/Users/hongting/projects/prob_ml/docs/dcc_usage.md).
+[DCC_USAGE.md](/Users/hongting/projects/prob_ml/DCC_USAGE.md).
 
 For the original course project description in Markdown form, see
-[docs/project_spec.md](/Users/hongting/projects/prob_ml/docs/project_spec.md).
+[PROJECT_SPEC.md](/Users/hongting/projects/prob_ml/PROJECT_SPEC.md).
 
 ## Repository Layout
 
@@ -81,6 +81,8 @@ tests/            Lightweight tests for the scaffold
   Prints the resolved pipeline plan and output locations.
 - `pest-pipeline render --config ...`
   Reserved for Blender-based synthetic data generation.
+- `pest-pipeline render-batch --config ...`
+  Runs the manifest-driven batch render entrypoint over kitchen photos.
 - `pest-pipeline convert --config ...`
   Reserved for annotation conversion and dataset packaging.
 - `pest-pipeline train --config ...`
