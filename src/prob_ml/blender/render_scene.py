@@ -71,9 +71,21 @@ def build_room(layout: dict) -> None:
     floor.data.materials.append(floor_material)
 
     wall_specs = [
-        ((0, depth / 2.0, height / 2.0), (width / 2.0, height / 2.0, 1.0), (math.radians(90), 0, 0)),
-        ((-width / 2.0, 0, height / 2.0), (depth / 2.0, height / 2.0, 1.0), (0, math.radians(-90), 0)),
-        ((width / 2.0, 0, height / 2.0), (depth / 2.0, height / 2.0, 1.0), (0, math.radians(90), 0)),
+        (
+            (0, depth / 2.0, height / 2.0),
+            (width / 2.0, height / 2.0, 1.0),
+            (math.radians(90), 0, 0),
+        ),
+        (
+            (-width / 2.0, 0, height / 2.0),
+            (depth / 2.0, height / 2.0, 1.0),
+            (0, math.radians(-90), 0),
+        ),
+        (
+            (width / 2.0, 0, height / 2.0),
+            (depth / 2.0, height / 2.0, 1.0),
+            (0, math.radians(90), 0),
+        ),
     ]
     for location, scale, rotation in wall_specs:
         bpy.ops.mesh.primitive_plane_add(size=1, location=location, rotation=rotation)
@@ -97,12 +109,22 @@ def build_pest(pest: dict):
     location = tuple(pest["path"]["start"])
 
     if pest_type == "cockroach":
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.08, location=location, segments=16, ring_count=8)
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=0.08,
+            location=location,
+            segments=16,
+            ring_count=8,
+        )
         obj = bpy.context.active_object
         obj.scale = (1.3 * pest["scale"], 0.8 * pest["scale"], 0.28 * pest["scale"])
         color = [0.34, 0.16, 0.08]
     else:
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.1, location=location, segments=20, ring_count=10)
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=0.1,
+            location=location,
+            segments=20,
+            ring_count=10,
+        )
         obj = bpy.context.active_object
         if pest_type == "rat":
             obj.scale = (2.2 * pest["scale"], 1.2 * pest["scale"], 0.9 * pest["scale"])

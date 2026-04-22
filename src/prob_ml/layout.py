@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import json
-from pathlib import Path
 import random
-from typing import Dict, List, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:
@@ -17,11 +17,11 @@ def _mean(values: Sequence[float]) -> float:
     return sum(values) / max(1, len(values))
 
 
-def _rounded_triplet(values: Tuple[float, float, float]) -> List[float]:
+def _rounded_triplet(values: tuple[float, float, float]) -> list[float]:
     return [round(values[0], 3), round(values[1], 3), round(values[2], 3)]
 
 
-def photo_cues_to_dict(photo_cues: "PhotoCuesSpec") -> Dict[str, float]:
+def photo_cues_to_dict(photo_cues: PhotoCuesSpec) -> dict[str, float]:
     """Convert photo cues to a stable JSON-friendly mapping."""
     return {
         "brightness_top": round(photo_cues.brightness_top, 4),
@@ -66,8 +66,8 @@ class RoomSpec:
 class CameraSpec:
     """Camera pose for the synthetic scene."""
 
-    location: Tuple[float, float, float]
-    rotation_deg: Tuple[float, float, float]
+    location: tuple[float, float, float]
+    rotation_deg: tuple[float, float, float]
     lens_mm: float
 
 
@@ -77,9 +77,9 @@ class LightSpec:
 
     name: str
     kind: str
-    location: Tuple[float, float, float]
+    location: tuple[float, float, float]
     energy: float
-    color: Tuple[float, float, float]
+    color: tuple[float, float, float]
 
 
 @dataclass
@@ -88,17 +88,17 @@ class FixtureSpec:
 
     name: str
     kind: str
-    center: Tuple[float, float, float]
-    size: Tuple[float, float, float]
-    color: Tuple[float, float, float]
+    center: tuple[float, float, float]
+    size: tuple[float, float, float]
+    color: tuple[float, float, float]
 
 
 @dataclass
 class PestPathSpec:
     """Linear motion path for a pest instance."""
 
-    start: Tuple[float, float, float]
-    end: Tuple[float, float, float]
+    start: tuple[float, float, float]
+    end: tuple[float, float, float]
     elevation: float
 
 
@@ -118,15 +118,15 @@ class LayoutSpec:
 
     schema_version: str
     source_photo: str
-    photo_size: Tuple[int, int]
+    photo_size: tuple[int, int]
     photo_cues: PhotoCuesSpec
     room: RoomSpec
     camera: CameraSpec
-    lights: List[LightSpec]
-    fixtures: List[FixtureSpec]
-    pests: List[PestInstanceSpec]
+    lights: list[LightSpec]
+    fixtures: list[FixtureSpec]
+    pests: list[PestInstanceSpec]
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         """Convert the layout spec to a JSON-serializable mapping."""
         raw = asdict(self)
         raw["photo_size"] = [int(self.photo_size[0]), int(self.photo_size[1])]
@@ -184,13 +184,13 @@ def save_layout_spec(layout_spec: LayoutSpec, path: Path) -> None:
         json.dump(layout_spec.to_dict(), handle, indent=2)
 
 
-def load_layout_spec(path: Path) -> Dict[str, object]:
+def load_layout_spec(path: Path) -> dict[str, object]:
     """Load a previously generated layout spec."""
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
-def summarize_layout_decisions(layout_spec: LayoutSpec) -> Dict[str, object]:
+def summarize_layout_decisions(layout_spec: LayoutSpec) -> dict[str, object]:
     """Summarize the main layout decisions for debugging and iteration."""
     fridge = next((fixture for fixture in layout_spec.fixtures if fixture.kind == "fridge"), None)
     island = next((fixture for fixture in layout_spec.fixtures if fixture.kind == "table"), None)
@@ -241,7 +241,7 @@ def extract_photo_cues(photo_path: Path) -> PhotoCuesSpec:
         width, height = image.size
         pixels = list(image.getdata())
 
-    def rgb(row: int, col: int) -> Tuple[float, float, float]:
+    def rgb(row: int, col: int) -> tuple[float, float, float]:
         red, green, blue = pixels[row * width + col]
         return red / 255.0, green / 255.0, blue / 255.0
 
@@ -303,7 +303,7 @@ def extract_photo_cues(photo_path: Path) -> PhotoCuesSpec:
     )
 
 
-def _build_room_spec(photo_size: Tuple[int, int], photo_cues: PhotoCuesSpec) -> RoomSpec:
+def _build_room_spec(photo_size: tuple[int, int], photo_cues: PhotoCuesSpec) -> RoomSpec:
     width_px, height_px = photo_size
     aspect_ratio = width_px / max(height_px, 1)
     openness = 1.0 - photo_cues.clutter_score
@@ -334,7 +334,7 @@ def _build_camera_spec(room: RoomSpec, photo_cues: PhotoCuesSpec) -> CameraSpec:
     )
 
 
-def _build_light_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[LightSpec]:
+def _build_light_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> list[LightSpec]:
     warm_strength = photo_cues.warm_bias
     fill_bias = photo_cues.left_brightness - photo_cues.right_brightness
     key_energy = 340.0 + photo_cues.brightness_top * 220.0
@@ -345,7 +345,11 @@ def _build_light_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[LightS
             kind="AREA",
             location=(0.0, 0.0, room.height + 1.5),
             energy=round(key_energy, 3),
-            color=(1.0, round(0.9 + warm_strength * 0.06, 3), round(0.84 + warm_strength * 0.08, 3)),
+            color=(
+                1.0,
+                round(0.9 + warm_strength * 0.06, 3),
+                round(0.84 + warm_strength * 0.08, 3),
+            ),
         ),
         LightSpec(
             name="fill",
@@ -361,14 +365,18 @@ def _build_light_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[LightS
         LightSpec(
             name="rim",
             kind="POINT",
-            location=(round(room.width * 0.28, 3), round(room.depth * 0.42, 3), round(room.height + 0.15, 3)),
+            location=(
+                round(room.width * 0.28, 3),
+                round(room.depth * 0.42, 3),
+                round(room.height + 0.15, 3),
+            ),
             energy=round(50.0 + photo_cues.contrast_score * 60.0, 3),
             color=(1.0, 0.93, round(0.82 + warm_strength * 0.08, 3)),
         ),
     ]
 
 
-def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[FixtureSpec]:
+def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> list[FixtureSpec]:
     wall_y = room.depth / 2.0
     counter_depth = 0.62 + photo_cues.clutter_score * 0.1
     cabinet_height = 0.9
@@ -391,14 +399,22 @@ def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[Fixt
         FixtureSpec(
             name="cabinet_left",
             kind="cabinet",
-            center=(-room.width * (0.23 + left_weight * 0.04), wall_y - counter_depth / 2.0, cabinet_height / 2.0),
+            center=(
+                -room.width * (0.23 + left_weight * 0.04),
+                wall_y - counter_depth / 2.0,
+                cabinet_height / 2.0,
+            ),
             size=(1.0 + left_weight * 0.9, counter_depth, cabinet_height),
             color=wood_base,
         ),
         FixtureSpec(
             name="cabinet_right",
             kind="cabinet",
-            center=(room.width * (0.22 + right_weight * 0.04), wall_y - counter_depth / 2.0, cabinet_height / 2.0),
+            center=(
+                room.width * (0.22 + right_weight * 0.04),
+                wall_y - counter_depth / 2.0,
+                cabinet_height / 2.0,
+            ),
             size=(1.1 + right_weight * 1.0, counter_depth, cabinet_height),
             color=(wood_base[0] * 0.92, wood_base[1] * 0.92, wood_base[2] * 0.92),
         ),
@@ -406,7 +422,12 @@ def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[Fixt
             name="fridge",
             kind="fridge",
             center=(
-                -room.width * (0.42 if photo_cues.left_brightness < photo_cues.right_brightness else -0.42),
+                -room.width
+                * (
+                    0.42
+                    if photo_cues.left_brightness < photo_cues.right_brightness
+                    else -0.42
+                ),
                 wall_y - 0.42,
                 1.05,
             ),
@@ -416,7 +437,11 @@ def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> List[Fixt
         FixtureSpec(
             name="island_table",
             kind="table",
-            center=(room.width * 0.12, -room.depth * (0.08 + photo_cues.clutter_score * 0.08), 0.42),
+            center=(
+                room.width * 0.12,
+                -room.depth * (0.08 + photo_cues.clutter_score * 0.08),
+                0.42,
+            ),
             size=(0.9 + center_weight * 0.45, 0.6 + photo_cues.clutter_score * 0.18, 0.84),
             color=(wood_base[0] * 1.08, wood_base[1] * 1.02, wood_base[2]),
         ),
@@ -429,16 +454,25 @@ def _build_pest_specs(
     photo_cues: PhotoCuesSpec,
     pest_types: Sequence[str],
     scene_seed: int,
-) -> List[PestInstanceSpec]:
+) -> list[PestInstanceSpec]:
     rng = random.Random(scene_seed)
     anchor_y = -room.depth * (0.12 + (1.0 - photo_cues.floor_line_ratio) * 0.08)
     base_paths = [
-        ((-room.width * 0.32, anchor_y, 0.0), (room.width * 0.12, anchor_y + room.depth * 0.06, 0.0)),
-        ((room.width * 0.26, anchor_y + room.depth * 0.08, 0.0), (-room.width * 0.06, anchor_y + room.depth * 0.12, 0.0)),
-        ((-room.width * 0.08, room.depth * 0.16, 0.0), (room.width * 0.24, room.depth * 0.18, 0.0)),
+        (
+            (-room.width * 0.32, anchor_y, 0.0),
+            (room.width * 0.12, anchor_y + room.depth * 0.06, 0.0),
+        ),
+        (
+            (room.width * 0.26, anchor_y + room.depth * 0.08, 0.0),
+            (-room.width * 0.06, anchor_y + room.depth * 0.12, 0.0),
+        ),
+        (
+            (-room.width * 0.08, room.depth * 0.16, 0.0),
+            (room.width * 0.24, room.depth * 0.18, 0.0),
+        ),
     ]
 
-    pests: List[PestInstanceSpec] = []
+    pests: list[PestInstanceSpec] = []
     for index, pest_type in enumerate(pest_types):
         start, end = base_paths[index % len(base_paths)]
         scale = 1.0 if pest_type == "mouse" else 1.28 if pest_type == "rat" else 0.52
@@ -462,7 +496,7 @@ def _build_pest_specs(
 
 def build_layout_spec(
     photo_path: Path,
-    photo_size: Tuple[int, int],
+    photo_size: tuple[int, int],
     photo_cues: PhotoCuesSpec,
     pest_types: Sequence[str],
     scene_seed: int,

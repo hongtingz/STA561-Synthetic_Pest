@@ -50,6 +50,19 @@ src/prob_ml/      Python package
 tests/            Lightweight tests for the scaffold
 ```
 
+## Data Conventions
+
+- `data/inputs/`
+  Single-image local experiments and smoke tests.
+- `data/raw/kitchen/images/`
+  External real kitchen photo corpus in its original form, used to drive large-batch synthetic generation.
+- `data/raw/kitchen/metadata/manifest.csv`
+  Optional manifest for tracking split membership, source, or quality flags.
+- `data/intermediate/`
+  Derived but non-final assets such as layout specs and cached preprocessing outputs.
+- `artifacts/`
+  Generated outputs only: rendered frames, converted annotations, trained models, previews.
+
 ## CLI Commands
 
 - `pest-pipeline doctor`

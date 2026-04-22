@@ -11,6 +11,7 @@ from prob_ml.layout import (
     save_layout_diagnostics,
     save_layout_spec,
 )
+from prob_ml.preview import save_layout_preview
 from prob_ml.render import build_blender_command
 
 
@@ -117,6 +118,37 @@ def test_save_layout_diagnostics_writes_summary(tmp_path: Path) -> None:
     raw = json.loads(output_path.read_text(encoding="utf-8"))
     assert raw["fixture_summary"]["fixture_count"] >= 1
     assert raw["pest_types"] == ["mouse", "rat"]
+
+
+def test_save_layout_preview_writes_svg(tmp_path: Path) -> None:
+    photo_path = tmp_path / "kitchen.jpg"
+    photo_path.write_bytes(b"fake")
+    photo_cues = PhotoCuesSpec(
+        brightness_top=0.8,
+        brightness_mid=0.56,
+        brightness_bottom=0.45,
+        left_brightness=0.36,
+        center_brightness=0.52,
+        right_brightness=0.71,
+        floor_line_ratio=0.73,
+        clutter_score=0.34,
+        warm_bias=0.63,
+        contrast_score=0.49,
+    )
+    layout = build_layout_spec(
+        photo_path=photo_path,
+        photo_size=(1280, 720),
+        photo_cues=photo_cues,
+        pest_types=["mouse", "cockroach"],
+        scene_seed=5,
+    )
+    preview_path = tmp_path / "layout_preview.svg"
+
+    save_layout_preview(layout, preview_path)
+
+    assert preview_path.exists()
+    assert preview_path.stat().st_size > 0
+    assert "<svg" in preview_path.read_text(encoding="utf-8")
 
 
 def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> None:

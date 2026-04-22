@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
-from typing import List, Optional
 
 from prob_ml.config import load_config
 from prob_ml.dataset import run_convert
@@ -61,7 +60,7 @@ def run_doctor(config_path: str) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     parser = build_parser()
     args = parser.parse_args(argv)

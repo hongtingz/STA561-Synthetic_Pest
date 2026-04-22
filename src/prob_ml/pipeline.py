@@ -15,9 +15,12 @@ def ensure_runtime_directories(config: PipelineConfig) -> list[Path]:
     candidate_paths = [
         "artifacts",
         "data/inputs",
+        config.section("inputs").get("kitchen_photo_dir"),
+        config.section("inputs").get("kitchen_manifest"),
         "data/intermediate/layout",
         "logs/dcc",
         config.section("inputs").get("layout_diagnostics"),
+        config.section("inputs").get("layout_preview"),
         config.section("dataset").get("frames_dir"),
         config.section("dataset").get("annotations_raw"),
         config.section("dataset").get("coco_annotations"),
@@ -49,8 +52,17 @@ def render_plan(config: PipelineConfig) -> str:
         [
             f"Config: {config.path}",
             f"Kitchen photo: {config.section('inputs').get('kitchen_photo', 'unset')}",
+            (
+                "Kitchen photo dir: "
+                f"{config.section('inputs').get('kitchen_photo_dir', 'unset')}"
+            ),
+            (
+                "Kitchen manifest: "
+                f"{config.section('inputs').get('kitchen_manifest', 'unset')}"
+            ),
             f"Layout spec: {config.section('inputs').get('layout_spec', 'unset')}",
             f"Layout diagnostics: {config.section('inputs').get('layout_diagnostics', 'unset')}",
+            f"Layout preview: {config.section('inputs').get('layout_preview', 'unset')}",
             f"Render backend: {render.get('backend', 'unset')}",
             f"Video length: {render.get('seconds', 'unset')}s @ {render.get('fps', 'unset')} fps",
             f"Pests: {', '.join(render.get('pest_types', [])) or 'unset'}",

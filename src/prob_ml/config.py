@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
 
 from prob_ml.paths import find_repo_root
 
@@ -26,7 +25,7 @@ class PipelineConfig:
         return value
 
 
-def load_config(config_path: Union[str, Path]) -> PipelineConfig:
+def load_config(config_path: str | Path) -> PipelineConfig:
     """Load a JSON config file and attach the resolved repository root."""
     repo_root = find_repo_root()
     path = Path(config_path)

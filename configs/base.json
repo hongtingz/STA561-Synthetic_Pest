@@ -5,8 +5,11 @@
   },
   "inputs": {
     "kitchen_photo": "data/inputs/kitchen.jpg",
+    "kitchen_photo_dir": "data/raw/kitchen/images",
+    "kitchen_manifest": "data/raw/kitchen/metadata/manifest.csv",
     "layout_spec": "data/intermediate/layout/layout.json",
-    "layout_diagnostics": "artifacts/layout/layout_diagnostics.json"
+    "layout_diagnostics": "artifacts/layout/layout_diagnostics.json",
+    "layout_preview": "artifacts/layout/layout_preview.svg"
   },
   "render": {
     "backend": "blender",
