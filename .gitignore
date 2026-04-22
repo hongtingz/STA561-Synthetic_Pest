@@ -1,14 +1,21 @@
-.vscode
-output/*
-*.pdf
 .DS_Store
-kitchen_images/*
-
-# Python / uv
-.venv
+.vscode/
+.idea/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 __pycache__/
 *.py[oc]
+
+# Python / uv
+.venv/
 build/
 dist/
-wheels/
-*.egg-info
+*.egg-info/
+
+# Project outputs
+artifacts/
+data/
+logs/
+tmp/
+

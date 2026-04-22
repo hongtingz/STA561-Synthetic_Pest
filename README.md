@@ -1,68 +1,87 @@
-# README.md
+# Prob ML Pest Pipeline
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Rebuilt foundation for the STA 561 pest-detection final project, with the repo
+organized around the A+ target:
 
-## Project
+1. Take a kitchen photo as input
+2. Generate labeled synthetic pest video in Blender
+3. Export frame-level annotations
+4. Train a ViT-based model
+5. Run the pipeline reproducibly on the Duke compute cluster
 
-STA 561 Final Project — **Synthetic Data Generation for Pest Detection** (Problem 2 from `final_project_2026-1.pdf`).
+## Design Goals
 
-The goal is an end-to-end Python pipeline that:
-1. Takes a kitchen photo as input
-2. Generates labeled synthetic video (30–60s) of pests (mice, rats, cockroaches) in that kitchen using Blender's Python API (`bpy`)
-3. Exports per-frame bounding box annotations (COCO format)
-4. Trains a Vision Transformer (ViT) on the synthetic data
-5. Must achieve ≥80% true detection rate and <5% false positive rate
+- `src/` package layout instead of loose top-level scripts
+- `uv` as the source of truth for dependency and environment management
+- one CLI entrypoint for local work and DCC submission
+- configuration-first workflow via JSON config files
+- clear separation between render, dataset, training, inference, and cluster orchestration
 
-A+ requirement: fully automated pipeline runnable at scale on the Duke compute cluster.
+## Current State
 
-## Current Focus
+This branch is a clean rebuild scaffold. The package structure, CLI, DCC helpers,
+and configuration flow are in place so the repo can grow into the full A+ system
+without another reorganization pass.
 
-**Local pipeline complete and evaluated.** ViT training passed targets (TDR=100%, FPR=0%). Next step: scale to DCC (add rat/cockroach pests there) and improve sim-to-real transfer.
+The Blender generation, dataset conversion, model training, and inference modules
+are intentionally scaffolded as structured placeholders right now. They provide:
 
-Pipeline stages (all implemented):
-1. `blender --background --python demo/render_demo.py` → renders 60 frames + raw annotations (`output/annotations.json`)
-2. `python demo/to_coco.py` → converts to COCO format (`output/coco_annotations.json`)
-3. `python train_vit.py` → fine-tunes ViT, evaluates TDR/FPR, saves model to `output/vit_model/`
-4. `python infer.py path/to/image.jpg` → runs multi-scale sliding window inference, saves annotated result to `output/infer_result.jpg`
+- stable module boundaries
+- consistent config loading
+- directory conventions
+- DCC job wiring
 
-Optional: `python demo/visualize.py` → draws bboxes on frames, saves to `output/viz/`
+## Quick Start
 
-## Rendering
+```bash
+uv sync
+uv run pest-pipeline doctor
+uv run pest-pipeline plan --config configs/base.json
+uv run pest-pipeline dcc-submit --config configs/base.json --job pipeline
+```
 
-Local demo uses **Cycles renderer** (64 samples + denoising, Filmic tone mapping) for realistic output. The scene includes:
-- Procedural materials: checker tile floor, painted drywall walls, wood-grain cabinets, granite countertop, fur-textured mouse
-- Kitchen geometry: lower/upper cabinets, countertop, fridge, side table with legs, baseboards
-- 4-light setup: warm overhead key, under-cabinet strip, cool side fill (window sim), rim light
-- Multi-part mouse model: body, head, snout, nose, ears, eyes, bezier tail
-- Local demo is **mouse-only**; rat and cockroach models will be added on DCC
+## Repository Layout
 
-## Training Results
+```text
+configs/          Runtime configuration files
+jobs/             DCC / Slurm job scripts
+scripts/          Small operational shell helpers
+src/prob_ml/      Python package
+tests/            Lightweight tests for the scaffold
+```
 
-- TDR: 100%, FPR: 0% — **PASS** (targets: ≥80% TDR, <5% FPR)
-- Evaluated on synthetic val split (80/20 split of 60 rendered frames)
-- Note: metrics are on synthetic data only; sim-to-real transfer not yet validated
+## CLI Commands
 
-## Known Issues / Fixes Applied
+- `pest-pipeline doctor`
+  Checks for expected local tools and directories.
+- `pest-pipeline plan --config configs/base.json`
+  Prints the resolved pipeline plan and output locations.
+- `pest-pipeline render --config ...`
+  Reserved for Blender-based synthetic data generation.
+- `pest-pipeline convert --config ...`
+  Reserved for annotation conversion and dataset packaging.
+- `pest-pipeline train --config ...`
+  Reserved for model training.
+- `pest-pipeline infer --config ...`
+  Reserved for inference and evaluation.
+- `pest-pipeline pipeline --config ...`
+  Reserved for the full end-to-end local pipeline.
+- `pest-pipeline dcc-submit --config ... --job pipeline`
+  Prints the `sbatch` command for DCC execution.
 
-- Mouse animation path was `x=-3→x=3`, causing frames 1–35 to have off-screen bboxes (negative widths). Fixed to `x=-1.5→x=1.5` so mouse stays within camera frustum all 60 frames.
-- `visualize.py` and `to_coco.py` both guard against invalid bboxes (`width <= 0 or height <= 0`).
-- Pylance warnings on `bpy` node socket attributes (e.g. `default_value`, `color_ramp`) are false positives — `bpy` stubs are incomplete but the code runs correctly in Blender.
+## DCC Direction
 
-## Environment
+The cluster-facing workflow is designed around:
 
-- Managed with [`uv`](https://docs.astral.sh/uv/) — project venv at `.venv` (Python 3.12)
-- Dependencies declared in `pyproject.toml`, locked in `uv.lock`
-- Sync deps: `uv sync`
-- Run scripts: `uv run python train_vit.py` (or activate with `source .venv/bin/activate`)
-- `bpy`/`mathutils` are Blender-bundled — not installed via `uv`, only available inside Blender's Python (use `blender --background --python demo/render_demo.py`)
+- config-driven jobs
+- reproducible output directories under `artifacts/`
+- Slurm entrypoints under `jobs/`
+- a single Python package that can be called locally and on DCC
 
-## Key Design Decisions
+## Next Build Steps
 
-- **Blender 5.0.1** installed at `/Applications/Blender.app`, CLI available as `blender`
-- For demo: use Blender GUI scripting tab; for production: headless via `blender --background --python script.py`
-- Annotations are generated programmatically from known 3D ground truth (no human labeling)
-- Target COCO-format JSON for compatibility with standard detection frameworks
-- ViT fine-tuning uses crop-based binary classification (pest/no-pest) — not full object detection — because 60 frames is too little data for a full detector
-- Negative samples: 3 random background crops per frame that don't overlap any annotated bbox
-- Training: AdamW lr=2e-5, batch 8, 10 epochs, 80/20 train/val split
-- Inference (`infer.py`): multi-scale sliding window (60/100/150/200px), each crop resized to 224×224, NMS applied — needed because mouse bbox (~61×42px) is much smaller than 224×224
+1. Implement Blender scene generation from a kitchen-photo-derived layout spec
+2. Add multi-pest assets and animation logic
+3. Implement COCO/video dataset packaging
+4. Wire in ViT training and evaluation
+5. Add instructor-style holdout evaluation and DCC batch jobs
