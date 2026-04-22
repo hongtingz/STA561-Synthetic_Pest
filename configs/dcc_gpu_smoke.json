@@ -1,0 +1,65 @@
+{
+  "project": {
+    "name": "sta561-pest-pipeline",
+    "root": "."
+  },
+  "inputs": {
+    "kitchen_photo": "data/inputs/kitchen.jpg",
+    "kitchen_photo_dir": "data/raw/kitchen/images",
+    "kitchen_manifest": "data/raw/kitchen/metadata/manifest.csv",
+    "layout_spec": "data/intermediate/layout/layout.json",
+    "layout_diagnostics": "artifacts/layout/layout_diagnostics.json",
+    "layout_preview": "artifacts/layout/layout_preview.svg"
+  },
+  "render": {
+    "backend": "blender",
+    "blender_executable": "blender",
+    "blender_script": "src/prob_ml/blender/render_scene.py",
+    "execute": true,
+    "render_device": "GPU",
+    "compute_backend": "CUDA",
+    "batch_output_dir": "artifacts/batch_render_dcc_smoke",
+    "batch_limit": 5,
+    "batch_enabled_only": true,
+    "scene_seed": 42,
+    "fps": 10,
+    "seconds": 5,
+    "resolution_width": 640,
+    "resolution_height": 360,
+    "samples": 8,
+    "pest_types": ["mouse", "rat", "cockroach"]
+  },
+  "dataset": {
+    "frames_dir": "artifacts/render/frames",
+    "annotations_raw": "artifacts/render/annotations.json",
+    "coco_annotations": "artifacts/dataset/coco_annotations.json",
+    "video_output": "artifacts/render/video.mp4"
+  },
+  "training": {
+    "model_name": "google/vit-base-patch16-224",
+    "output_dir": "artifacts/models/vit",
+    "epochs": 10,
+    "batch_size": 8,
+    "learning_rate": 2e-5,
+    "val_split": 0.2,
+    "device": "auto"
+  },
+  "inference": {
+    "input_image": "data/inputs/kitchen.jpg",
+    "output_image": "artifacts/infer/infer_result.jpg",
+    "threshold": 0.6,
+    "window_sizes": [64, 96, 128, 160, 224],
+    "stride_ratio": 0.25
+  },
+  "dcc": {
+    "profile": "duke",
+    "partition": "gpu",
+    "account": "sta561",
+    "time": "02:00:00",
+    "gpus": 1,
+    "cpus_per_task": 8,
+    "memory": "32G",
+    "job_script_dir": "jobs",
+    "log_dir": "logs/dcc"
+  }
+}
