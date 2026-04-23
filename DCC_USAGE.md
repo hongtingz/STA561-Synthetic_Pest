@@ -12,6 +12,12 @@ This project keeps two main runtime configs:
   Smaller DCC validation config. It keeps the same `GPU + CUDA` path but uses a
   limited batch size and lighter render settings for first-pass cluster tests.
 
+The Slurm scripts target Duke's H200 scavenger partition:
+
+- Partition: `scavenger-h200`
+- Account: `scavenger-h200`
+- GPU request: `gpu:h200:1`
+
 ## Before You Submit
 
 1. Make sure the repo is on DCC and you are in the project root:

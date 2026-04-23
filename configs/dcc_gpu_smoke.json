@@ -53,8 +53,8 @@
   },
   "dcc": {
     "profile": "duke",
-    "partition": "gpu",
-    "account": "sta561",
+    "partition": "scavenger-h200",
+    "account": "scavenger-h200",
     "time": "02:00:00",
     "gpus": 1,
     "cpus_per_task": 8,
