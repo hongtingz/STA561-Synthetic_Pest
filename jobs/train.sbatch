@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=sta561-pest-train
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --partition=scavenger-h200
+#SBATCH --gres=gpu:h200:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
