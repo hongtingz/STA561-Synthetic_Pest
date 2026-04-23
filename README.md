@@ -23,8 +23,16 @@ This branch is a clean rebuild scaffold. The package structure, CLI, DCC helpers
 and configuration flow are in place so the repo can grow into the full A+ system
 without another reorganization pass.
 
-The Blender generation, dataset conversion, model training, and inference modules
-are intentionally scaffolded as structured placeholders right now. They provide:
+The render and dataset-packaging path now supports:
+
+- manifest-driven batch render preparation
+- Blender frame + annotation outputs
+- COCO dataset export for detector training
+- YOLO dataset export for fast detector baselines
+- negative-only real-kitchen holdout packaging for false-positive evaluation
+
+Model training and inference are still intentionally scaffolded placeholders. The
+current repo provides:
 
 - stable module boundaries
 - consistent config loading
@@ -37,6 +45,7 @@ are intentionally scaffolded as structured placeholders right now. They provide:
 uv sync
 uv run pest-pipeline doctor
 uv run pest-pipeline plan --config configs/base.json
+uv run pest-pipeline convert --config configs/base.json
 uv run pest-pipeline dcc-submit --config configs/base.json --job pipeline
 ```
 
@@ -73,6 +82,33 @@ tests/            Lightweight tests for the scaffold
 - `artifacts/`
   Generated outputs only: rendered frames, converted annotations, trained models, previews.
 
+Key dataset outputs produced by `pest-pipeline convert`:
+
+- `artifacts/dataset/coco_annotations.json`
+  Combined positive rendered dataset.
+- `artifacts/dataset/coco_train.json`
+  COCO training split for positive rendered data.
+- `artifacts/dataset/coco_val.json`
+  COCO validation split for positive rendered data.
+- `artifacts/dataset/coco_neg_test.json`
+  COCO-style negative-only real kitchen holdout.
+- `artifacts/dataset/neg_test_images.json`
+  Real kitchen negative-only image listing for false-positive evaluation.
+- `artifacts/dataset/yolo/`
+  YOLO images, labels, and `data.yaml` derived from the same split definitions.
+- `artifacts/dataset/dataset_summary.json`
+  Split counts, category mappings, and missing-background summary.
+
+Current split interpretation:
+
+- `train` / `val`
+  Positive rendered or composited pest data.
+- `neg_test`
+  Real kitchen images with no pests, used for false-positive evaluation.
+
+Because the team does not currently have real positive pest images, any future
+positive `test` split must come from held-out rendered or composited data.
+
 ## CLI Commands
 
 - `pest-pipeline doctor`
@@ -84,7 +120,8 @@ tests/            Lightweight tests for the scaffold
 - `pest-pipeline render-batch --config ...`
   Runs the manifest-driven batch render entrypoint over kitchen photos.
 - `pest-pipeline convert --config ...`
-  Reserved for annotation conversion and dataset packaging.
+  Validates rendered annotations and exports COCO + YOLO datasets together with
+  a negative-only real-kitchen holdout manifest.
 - `pest-pipeline train --config ...`
   Reserved for model training.
 - `pest-pipeline infer --config ...`
@@ -105,8 +142,8 @@ The cluster-facing workflow is designed around:
 
 ## Next Build Steps
 
-1. Implement Blender scene generation from a kitchen-photo-derived layout spec
-2. Add multi-pest assets and animation logic
-3. Implement COCO/video dataset packaging
-4. Wire in ViT training and evaluation
-5. Add instructor-style holdout evaluation and DCC batch jobs
+1. Scale batch rendering and confirm output quality across more kitchen backgrounds
+2. Wire detector training to the exported COCO / YOLO dataset contract
+3. Implement inference and evaluation reports for TDR / FPR
+4. Add instructor-style holdout evaluation and finalize split usage
+5. Tighten end-to-end docs and DCC batch-job guidance

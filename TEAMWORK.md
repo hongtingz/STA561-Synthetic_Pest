@@ -16,10 +16,10 @@ The project currently has:
 
 The project still needs:
 
-- COCO/video dataset packaging
 - Detector training
 - Detector inference
 - Evaluation for true detection rate and false positive rate
+- Final interface cleanup between dataset export and detector training
 
 ## Owner 1 (Hongting): Synthetic Data And DCC Pipeline
 
@@ -72,9 +72,11 @@ Responsibilities:
 - Implement dataset conversion in `src/prob_ml/dataset.py`.
 - Read batch render outputs from `artifacts/batch_render*/`.
 - Convert generated frame annotations into COCO-style detection datasets.
-- Produce train/validation/test splits.
+- Produce train/validation splits for positive rendered data.
+- Preserve a separate `neg_test` split for real kitchen images with no pests.
 - Validate that every annotation points to an existing frame image.
 - Validate category IDs and bounding-box format.
+- Export a YOLO-format dataset in addition to COCO for fast detector baselines.
 - Prepare ground-truth files needed by the detector owner.
 - Coordinate with Owner 3 on any model-specific dataset loader needs.
 
@@ -82,11 +84,26 @@ Expected outputs:
 
 ```text
 artifacts/dataset/
+  coco_annotations.json
   coco_train.json
   coco_val.json
-  coco_test.json
+  coco_neg_test.json
+  neg_test_images.json
   dataset_summary.json
+  yolo/
+    data.yaml
+    images/
+    labels/
 ```
+
+Current Owner 2 implementation status:
+
+- `src/prob_ml/dataset.py` now converts rendered frame annotations into COCO.
+- The same conversion step also writes YOLO labels and `data.yaml`.
+- File paths are written relative to the repository root where possible.
+- Bounding boxes are validated against frame image size before export.
+- The conversion step requires rendered `train` and `val` splits to exist.
+- `neg_test` is treated as a real-image negative-only holdout, not a positive detection split.
 
 ## Owner 3: Detector Training, Inference, And Evaluation
 
@@ -139,6 +156,12 @@ Required categories:
 ]
 ```
 
+Category mapping contract:
+
+- COCO uses `category_id` values `1=mouse`, `2=rat`, `3=cockroach`.
+- YOLO uses zero-based class ids `0=mouse`, `1=rat`, `2=cockroach`.
+- Do not change category order without notifying all owners.
+
 Expected COCO structure:
 
 ```json
@@ -173,9 +196,28 @@ Notes:
 
 - Bounding boxes use COCO format: `[x, y, width, height]`.
 - Coordinates are pixel coordinates.
-- `file_name` should point to the rendered frame image.
+- `file_name` should point to the rendered frame image using a path relative to repo root.
 - Owner 3 should not need to know how Blender generated the frame.
 - Owner 1 should not need to know model internals.
+- `neg_test` contains real kitchen images with no pests and should be used for false-positive evaluation.
+- Because the team does not currently have real positive pest images, any positive `test` split must come from rendered or composited data.
+
+Expected YOLO structure:
+
+```text
+artifacts/dataset/yolo/
+  data.yaml
+  images/
+    train/
+    val/
+    test/        # can point to neg_test if no positive test split exists
+    neg_test/
+  labels/
+    train/
+    val/
+    test/
+    neg_test/
+```
 
 ## Recommended Parallel Workflow
 
@@ -202,6 +244,7 @@ artifacts/batch_render_smoke/kitchen_0001/
 ```text
 artifacts/dataset/coco_train.json
 artifacts/dataset/coco_val.json
+artifacts/dataset/yolo/data.yaml
 ```
 
 5. Owner 3 trains:
@@ -247,6 +290,12 @@ The evaluation code should report:
 - Number of ground-truth boxes
 - Number of predicted boxes
 
+Recommended evaluation split interpretation:
+
+- `train` / `val`: rendered or composited positive pest data
+- `neg_test`: real kitchen negative-only data for false-positive rate measurement
+- Optional `test`: only if the team later creates a held-out positive rendered/composited split
+
 ## Coordination Rules
 
 - Owner 1 owns render, layout, manifest, Blender, DCC, and render configs.
@@ -254,5 +303,8 @@ The evaluation code should report:
 - Owner 3 owns training, inference, model, and evaluation files.
 - Shared config changes should be discussed before committing.
 - Do not change the COCO dataset schema without notifying all owners.
+- Do not change split names (`train`, `val`, `neg_test`, optional `test`) without notifying all owners.
+- If Owner 3 trains with YOLO, the canonical class order must still match the COCO export.
+- If a future positive `test` split is added, update both COCO and YOLO exports together.
 - Keep generated artifacts out of git.
 - Commit code and config changes, not rendered frames or model checkpoints.
