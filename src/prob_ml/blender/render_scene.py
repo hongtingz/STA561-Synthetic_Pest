@@ -717,10 +717,23 @@ def build_pest(pest: dict, asset_style: str, asset_root: Path):
 
 
 def animate_pest(obj, pest: dict, frame_end: int) -> None:
-    obj.location = tuple(pest["path"]["start"])
-    obj.keyframe_insert(data_path="location", frame=1)
-    obj.location = tuple(pest["path"]["end"])
-    obj.keyframe_insert(data_path="location", frame=frame_end)
+    path = pest["path"]
+    start = tuple(path["start"])
+    end = tuple(path["end"])
+    wps = path.get("waypoints") or []
+    if not wps:
+        obj.location = start
+        obj.keyframe_insert(data_path="location", frame=1)
+        obj.location = end
+        obj.keyframe_insert(data_path="location", frame=frame_end)
+        return
+    points = [start, *[tuple(p) for p in wps], end]
+    n = len(points)
+    for i, loc in enumerate(points):
+        frame = 1 + int(round((frame_end - 1) * i / max(1, n - 1)))
+        frame = max(1, min(frame, frame_end))
+        obj.location = loc
+        obj.keyframe_insert(data_path="location", frame=frame)
 
 
 def setup_camera(layout: dict):
@@ -808,21 +821,26 @@ def setup_render(args: argparse.Namespace) -> None:
         print("Configured Cycles rendering on CPU.")
 
 
-def _mesh_objects_for_bbox(obj) -> list:
-    objects = []
+def _objects_for_bbox(obj) -> list:
+    """Meshes and curves under the pest root (excludes contact-shadow helpers)."""
+    out = []
     candidates = [obj, *getattr(obj, "children_recursive", [])]
     for candidate in candidates:
         if candidate.get("exclude_from_bbox"):
             continue
-        if getattr(candidate, "type", None) == "MESH":
-            objects.append(candidate)
-    return objects
+        if getattr(candidate, "type", None) in {"MESH", "CURVE"}:
+            out.append(candidate)
+    return out
 
 
 def compute_bbox(obj, camera, scene, width: int, height: int):
+    """
+    2D axis-aligned box from the union of projected bound_box corners in front
+    of the camera (partial visibility: drop corners with z <= 0).
+    """
     depsgraph = bpy.context.evaluated_depsgraph_get()
     corners_world = []
-    for mesh_obj in _mesh_objects_for_bbox(obj):
+    for mesh_obj in _objects_for_bbox(obj):
         obj_eval = mesh_obj.evaluated_get(depsgraph)
         corners_world.extend(
             obj_eval.matrix_world @ Vector(corner)
@@ -835,10 +853,13 @@ def compute_bbox(obj, camera, scene, width: int, height: int):
     ys = []
     for corner in corners_world:
         ndc = world_to_camera_view(scene, camera, corner)
-        if ndc.z < 0:
-            return None
+        if ndc.z <= 0:
+            continue
         xs.append(ndc.x * width)
         ys.append((1.0 - ndc.y) * height)
+
+    if not xs:
+        return None
 
     x_min = max(0.0, min(xs))
     y_min = max(0.0, min(ys))

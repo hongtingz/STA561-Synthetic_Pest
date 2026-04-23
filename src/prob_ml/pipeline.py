@@ -24,6 +24,7 @@ def ensure_runtime_directories(config: PipelineConfig) -> list[Path]:
         config.section("render").get("batch_output_dir"),
         config.section("dataset").get("frames_dir"),
         config.section("dataset").get("annotations_raw"),
+        config.section("dataset").get("video_output"),
         config.section("dataset").get("coco_annotations"),
         config.section("training").get("output_dir"),
         config.section("inference").get("output_image"),

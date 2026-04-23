@@ -16,6 +16,7 @@ from prob_ml.layout import (
 )
 from prob_ml.manifest import KitchenPhotoRecord, load_kitchen_photo_manifest
 from prob_ml.preview import save_layout_preview
+from prob_ml.video import mux_frames_to_mp4
 
 
 def _resolve_path(config: PipelineConfig, relative_path: str) -> Path:
@@ -65,6 +66,10 @@ def resolve_render_paths(config: PipelineConfig) -> dict[str, Path]:
             config,
             render.get("blender_script", "src/prob_ml/blender/render_scene.py"),
         ),
+        "video_output": _resolve_path(
+            config,
+            dataset.get("video_output", "artifacts/render/video.mp4"),
+        ),
     }
 
 
@@ -84,6 +89,7 @@ def resolve_batch_render_paths(
         "layout_preview": sample_root / "layout_preview.svg",
         "frames_dir": sample_root / "frames",
         "annotations": sample_root / "annotations.json",
+        "video_output": sample_root / "video.mp4",
         "blender_script": _resolve_path(
             config,
             render.get("blender_script", "src/prob_ml/blender/render_scene.py"),
@@ -98,7 +104,10 @@ def _ensure_render_output_dirs(resolved_paths: dict[str, Path]) -> None:
         "layout_preview",
         "frames_dir",
         "annotations",
+        "video_output",
     ]:
+        if key not in resolved_paths:
+            continue
         path = resolved_paths[key]
         target_dir = path if path.suffix == "" else path.parent
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -183,6 +192,34 @@ def build_blender_command(config: PipelineConfig, resolved_paths: dict[str, Path
     ]
 
 
+def _maybe_mux_video(config: PipelineConfig, resolved_paths: dict[str, Path]) -> None:
+    """After Blender finishes, optionally mux PNG frames to H.264 with ffmpeg."""
+    render = config.section("render")
+    if not render.get("mux_video", True):
+        return
+    video_path = resolved_paths.get("video_output")
+    if not video_path:
+        return
+    frames_dir = resolved_paths["frames_dir"]
+    fps = int(render.get("fps", 30))
+    seconds = int(render.get("seconds", 30))
+    num_frames = fps * seconds
+    ok = mux_frames_to_mp4(
+        frames_dir,
+        video_path,
+        fps=fps,
+        num_frames=num_frames,
+        frame_pattern="frame_%05d.png",
+        start_number=1,
+        ffmpeg_bin=str(render.get("ffmpeg_executable", "ffmpeg")),
+        crf=int(render.get("video_crf", 20)),
+    )
+    if ok:
+        print(f"  video_output={video_path}")
+    else:
+        print("  video_output=skipped (install ffmpeg or set render.mux_video=false)")
+
+
 def run_render(config: PipelineConfig) -> None:
     """Generate a layout spec and prepare the Blender render command."""
     render = config.section("render")
@@ -220,9 +257,12 @@ def run_render(config: PipelineConfig) -> None:
     )
     print("  blender_command=")
     print("    " + " ".join(shlex.quote(part) for part in command))
+    print(f"  video_output={resolved_paths['video_output']}")
+    print(f"  mux_video={bool(render.get('mux_video', True))}")
 
     if render.get("execute", False):
         subprocess.run(command, check=True)
+        _maybe_mux_video(config, resolved_paths)
 
 
 def run_render_batch(config: PipelineConfig) -> None:
@@ -278,6 +318,8 @@ def run_render_batch(config: PipelineConfig) -> None:
         )
         print("  blender_command=")
         print("    " + " ".join(shlex.quote(part) for part in command))
+        print(f"  video_output={resolved_paths['video_output']}")
 
         if render.get("execute", False):
             subprocess.run(command, check=True)
+            _maybe_mux_video(config, resolved_paths)

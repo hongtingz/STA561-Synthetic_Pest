@@ -95,11 +95,12 @@ class FixtureSpec:
 
 @dataclass
 class PestPathSpec:
-    """Linear motion path for a pest instance."""
+    """Motion path for a pest instance (optionally with weaving waypoints)."""
 
     start: tuple[float, float, float]
     end: tuple[float, float, float]
     elevation: float
+    waypoints: tuple[tuple[float, float, float], ...] = ()
 
 
 @dataclass
@@ -161,19 +162,25 @@ class LayoutSpec:
             }
             for fixture in self.fixtures
         ]
-        raw["pests"] = [
-            {
-                "pest_id": pest.pest_id,
-                "pest_type": pest.pest_type,
-                "scale": round(pest.scale, 3),
-                "path": {
-                    "start": _rounded_triplet(pest.path.start),
-                    "end": _rounded_triplet(pest.path.end),
-                    "elevation": round(pest.path.elevation, 3),
-                },
+        raw["pests"] = []
+        for pest in self.pests:
+            path_dict: dict[str, object] = {
+                "start": _rounded_triplet(pest.path.start),
+                "end": _rounded_triplet(pest.path.end),
+                "elevation": round(pest.path.elevation, 3),
             }
-            for pest in self.pests
-        ]
+            if pest.path.waypoints:
+                path_dict["waypoints"] = [
+                    _rounded_triplet(p) for p in pest.path.waypoints
+                ]
+            raw["pests"].append(
+                {
+                    "pest_id": pest.pest_id,
+                    "pest_type": pest.pest_type,
+                    "scale": round(pest.scale, 3),
+                    "path": path_dict,
+                }
+            )
         return raw
 
 
@@ -449,6 +456,24 @@ def _build_fixture_specs(room: RoomSpec, photo_cues: PhotoCuesSpec) -> list[Fixt
     return fixtures
 
 
+def _lateral_point(
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    t: float,
+    lateral: float,
+) -> tuple[float, float, float]:
+    """Interpolate along start→end and offset perpendicular in the XY plane."""
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length = (dx * dx + dy * dy) ** 0.5
+    if length < 1e-6:
+        return (start[0], start[1], start[2])
+    px, py = -dy / length, dx / length
+    x = start[0] + t * dx + lateral * px
+    y = start[1] + t * dy + lateral * py
+    z = start[2] + t * (end[2] - start[2])
+    return (round(x, 3), round(y, 3), round(z, 3))
+
+
 def _build_pest_specs(
     room: RoomSpec,
     photo_cues: PhotoCuesSpec,
@@ -481,15 +506,26 @@ def _build_pest_specs(
         elevation = 0.08 if pest_type in {"mouse", "rat"} else 0.03
         jitter_x = rng.uniform(-0.14, 0.14)
         jitter_y = rng.uniform(-0.12, 0.12)
+        s = (
+            round(start[0] + jitter_x, 3),
+            round(start[1] + jitter_y, 3),
+            elevation,
+        )
+        e = (round(end[0] + jitter_x, 3), round(end[1] + jitter_y, 3), elevation)
+        w_mag = room.width * (0.1 + 0.04 * (index % 3)) * (0.55 + photo_cues.clutter_score * 0.25)
+        sign = 1.0 if index % 2 == 0 else -1.0
+        w1 = _lateral_point(s, e, 1.0 / 3.0, sign * w_mag)
+        w2 = _lateral_point(s, e, 2.0 / 3.0, -sign * w_mag)
         pests.append(
             PestInstanceSpec(
                 pest_id=f"{pest_type}_{index + 1}",
                 pest_type=pest_type,
                 scale=scale,
                 path=PestPathSpec(
-                    start=(round(start[0] + jitter_x, 3), round(start[1] + jitter_y, 3), elevation),
-                    end=(round(end[0] + jitter_x, 3), round(end[1] + jitter_y, 3), elevation),
+                    start=s,
+                    end=e,
                     elevation=elevation,
+                    waypoints=(w1, w2),
                 ),
             )
         )
@@ -510,7 +546,7 @@ def build_layout_spec(
     fixtures = _build_fixture_specs(room, photo_cues)
     pests = _build_pest_specs(room, photo_cues, pest_types, scene_seed)
     return LayoutSpec(
-        schema_version="0.2.0",
+        schema_version="0.2.1",
         source_photo=str(photo_path),
         photo_size=photo_size,
         photo_cues=photo_cues,

@@ -52,6 +52,8 @@ def test_build_layout_spec_includes_requested_pests(tmp_path: Path) -> None:
 
     pest_types = [pest.pest_type for pest in layout.pests]
     assert pest_types == ["mouse", "rat", "cockroach"]
+    for pest in layout.pests:
+        assert len(pest.path.waypoints) == 2
     assert layout.room.width > 0
     assert layout.room.depth > 0
     assert layout.photo_cues.floor_line_ratio == 0.7

@@ -26,17 +26,20 @@ without another reorganization pass.
 The render and dataset-packaging path now supports:
 
 - manifest-driven batch render preparation
-- Blender frame + annotation outputs
+- Blender frame + per-pest JSON annotations from `src/prob_ml/blender/render_scene.py`
+- **Multi-pest scenes** via `render.pest_types` (e.g. `mouse`, `rat`, `cockroach`), each
+  with a woven path (two intermediate waypoints) in the generated `layout.json`
+- **H.264 video** after rendering: with `render.execute: true` and `render.mux_video: true`
+  (default), frames under `dataset.frames_dir` are muxed to `dataset.video_output` using
+  `ffmpeg` (set `render.mux_video: false` to skip)
 - COCO dataset export for detector training
 - YOLO dataset export for fast detector baselines
 - negative-only real-kitchen holdout packaging for false-positive evaluation
 
-**Legacy standalone** (optional quick local test, outputs under `output/`): multi-pest
-scene (mouse, rat, cockroach), Cycles frames, and optional H.264 mux via `ffmpeg`.
-
-1. `blender --background --python demo/render_demo.py` — frames, `output/annotations.json`, and `output/synthetic_pest_video.mp4` if `ffmpeg` is on `PATH`
-2. `python demo/frames_to_video.py` — optional: rebuild MP4 from `output/frames/` without re-rendering Blender
-3. Feed annotations into the main pipeline with `pest-pipeline convert` (see configs under `configs/`) when you are ready to train on `artifacts/`
+**Optional legacy demo** (`demo/render_demo.py`): self-contained Cycles kitchen + the same
+three pest families; can mux MP4 the same way if `ffmpeg` is available. Rebuild from
+frames only: `uv run python demo/frames_to_video.py` (expects `artifacts/render/frames/`
+and 5-digit `frame_%05d.png` names from the main renderer).
 
 Model training and inference are still intentionally scaffolded placeholders. The
 current repo provides:

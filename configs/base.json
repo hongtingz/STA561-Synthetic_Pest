@@ -30,7 +30,10 @@
     "resolution_width": 1280,
     "resolution_height": 720,
     "samples": 64,
-    "pest_types": ["mouse", "rat", "cockroach"]
+    "pest_types": ["mouse", "rat", "cockroach"],
+    "mux_video": true,
+    "ffmpeg_executable": "ffmpeg",
+    "video_crf": 20
   },
   "dataset": {
     "frames_dir": "artifacts/render/frames",
