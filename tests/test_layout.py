@@ -165,6 +165,8 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
                 "blender_script": "src/prob_ml/blender/render_scene.py",
                 "render_device": "GPU",
                 "compute_backend": "CUDA",
+                "photo_background": True,
+                "pest_asset_style": "procedural_v2",
                 "fps": 30,
                 "seconds": 30,
                 "resolution_width": 1280,
@@ -193,6 +195,10 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
     assert "GPU" in command
     assert "--compute-backend" in command
     assert "CUDA" in command
+    assert "--photo-background" in command
+    assert "true" in command
+    assert "--pest-asset-style" in command
+    assert "procedural_v2" in command
 
 
 def test_photo_cues_change_layout_geometry(tmp_path: Path) -> None:

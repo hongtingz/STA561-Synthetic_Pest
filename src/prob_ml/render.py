@@ -174,6 +174,10 @@ def build_blender_command(config: PipelineConfig, resolved_paths: dict[str, Path
         str(render.get("render_device", "CPU")).upper(),
         "--compute-backend",
         str(render.get("compute_backend", "AUTO")).upper(),
+        "--photo-background",
+        str(bool(render.get("photo_background", True))).lower(),
+        "--pest-asset-style",
+        str(render.get("pest_asset_style", "procedural_v2")),
     ]
 
 
@@ -201,6 +205,8 @@ def run_render(config: PipelineConfig) -> None:
     print(f"  pests={render.get('pest_types')}")
     print(f"  render_device={str(render.get('render_device', 'CPU')).upper()}")
     print(f"  compute_backend={str(render.get('compute_backend', 'AUTO')).upper()}")
+    print(f"  photo_background={bool(render.get('photo_background', True))}")
+    print(f"  pest_asset_style={render.get('pest_asset_style', 'procedural_v2')}")
     print("  layout_cues=content-driven from kitchen photo")
     print(
         "  layout_summary="

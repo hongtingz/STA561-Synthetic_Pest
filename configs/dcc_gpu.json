@@ -18,6 +18,8 @@
     "execute": true,
     "render_device": "GPU",
     "compute_backend": "CUDA",
+    "photo_background": true,
+    "pest_asset_style": "procedural_v2",
     "batch_output_dir": "artifacts/batch_render",
     "batch_limit": 25,
     "batch_enabled_only": true,

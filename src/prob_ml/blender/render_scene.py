@@ -32,12 +32,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples", type=int, required=True)
     parser.add_argument("--render-device", default="CPU")
     parser.add_argument("--compute-backend", default="AUTO")
+    parser.add_argument("--photo-background", default="false")
+    parser.add_argument("--pest-asset-style", default="procedural_v2")
     return parser.parse_args(argv)
 
 
 def load_layout(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def parse_bool(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def clear_scene() -> None:
@@ -55,6 +61,63 @@ def make_material(name: str, color: list[float], roughness: float = 0.5):
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Roughness"].default_value = roughness
     return material
+
+
+def make_image_material(name: str, image_path: Path):
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    bsdf = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
+    image_node = nodes.new(type="ShaderNodeTexImage")
+    image_node.image = bpy.data.images.load(str(image_path))
+    links.new(image_node.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.8
+    if "Emission Color" in bsdf.inputs:
+        links.new(image_node.outputs["Color"], bsdf.inputs["Emission Color"])
+    if "Emission Strength" in bsdf.inputs:
+        bsdf.inputs["Emission Strength"].default_value = 0.35
+    return material
+
+
+def make_pest_material(name: str, color: list[float], roughness: float = 0.78):
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+    bsdf = next(node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+    bsdf.inputs["Roughness"].default_value = roughness
+    if "Metallic" in bsdf.inputs:
+        bsdf.inputs["Metallic"].default_value = 0.0
+    return material
+
+
+def add_photo_background(layout: dict, camera, scene) -> None:
+    """Place the source kitchen photo on a renderable plane behind the pests."""
+    photo_path = Path(layout.get("source_photo", ""))
+    if not photo_path.exists():
+        print(f"Photo background missing, keeping synthetic room only: {photo_path}")
+        return
+
+    distance = max(12.0, float(layout["room"]["depth"]) * 2.4)
+    frame = camera.data.view_frame(scene=scene)
+    xs = [corner.x for corner in frame]
+    ys = [corner.y for corner in frame]
+    width = (max(xs) - min(xs)) * distance
+    height = (max(ys) - min(ys)) * distance
+
+    local_center = Vector((0.0, 0.0, -distance))
+    world_center = camera.matrix_world @ local_center
+    bpy.ops.mesh.primitive_plane_add(
+        size=1,
+        location=world_center,
+        rotation=camera.rotation_euler,
+    )
+    plane = bpy.context.active_object
+    plane.name = "source_photo_background"
+    plane.scale = (width / 2.0, height / 2.0, 1.0)
+    plane.data.materials.append(make_image_material("source_photo_mat", photo_path))
+    plane.hide_select = True
+    print(f"Using source photo background: {photo_path}")
 
 
 def build_room(layout: dict) -> None:
@@ -106,7 +169,232 @@ def build_fixture(fixture: dict) -> None:
     obj.data.materials.append(make_material(f"{fixture['name']}_mat", fixture["color"], 0.45))
 
 
-def build_pest(pest: dict):
+def _path_yaw(pest: dict) -> float:
+    start = pest["path"]["start"]
+    end = pest["path"]["end"]
+    return math.atan2(end[1] - start[1], end[0] - start[0])
+
+
+def _create_root(name: str, pest: dict):
+    root = bpy.data.objects.new(name=name, object_data=None)
+    root.empty_display_type = "PLAIN_AXES"
+    root.empty_display_size = 0.18
+    root.location = tuple(pest["path"]["start"])
+    root.rotation_euler = (0.0, 0.0, _path_yaw(pest))
+    bpy.context.collection.objects.link(root)
+    return root
+
+
+def _add_child_ellipsoid(
+    root,
+    name: str,
+    material,
+    *,
+    radius: float,
+    location: tuple[float, float, float],
+    scale: tuple[float, float, float],
+    segments: int = 24,
+    ring_count: int = 12,
+):
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        radius=radius,
+        location=(0.0, 0.0, 0.0),
+        segments=segments,
+        ring_count=ring_count,
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.parent = root
+    obj.location = location
+    obj.scale = scale
+    bpy.ops.object.shade_smooth()
+    obj.data.materials.append(material)
+    return obj
+
+
+def _add_child_cylinder(
+    root,
+    name: str,
+    material,
+    *,
+    radius: float,
+    depth: float,
+    location: tuple[float, float, float],
+    rotation: tuple[float, float, float],
+):
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=12,
+        radius=radius,
+        depth=depth,
+        location=(0.0, 0.0, 0.0),
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.parent = root
+    obj.location = location
+    obj.rotation_euler = rotation
+    obj.data.materials.append(material)
+    return obj
+
+
+def build_rodent_pest(pest: dict, *, is_rat: bool):
+    root = _create_root(pest["pest_id"], pest)
+    scale = float(pest["scale"])
+    if is_rat:
+        body_color = [0.25, 0.24, 0.23]
+        belly_color = [0.43, 0.39, 0.35]
+        body_len = 0.24 * scale
+        body_w = 0.105 * scale
+        body_h = 0.075 * scale
+        head_size = 0.065 * scale
+        tail_len = 0.24 * scale
+    else:
+        body_color = [0.45, 0.41, 0.36]
+        belly_color = [0.62, 0.56, 0.49]
+        body_len = 0.16 * scale
+        body_w = 0.075 * scale
+        body_h = 0.055 * scale
+        head_size = 0.047 * scale
+        tail_len = 0.16 * scale
+
+    body_mat = make_pest_material(f"{pest['pest_id']}_fur_mat", body_color)
+    belly_mat = make_pest_material(f"{pest['pest_id']}_belly_mat", belly_color)
+    dark_mat = make_pest_material(f"{pest['pest_id']}_dark_mat", [0.05, 0.045, 0.04])
+    pink_mat = make_pest_material(f"{pest['pest_id']}_tail_mat", [0.58, 0.36, 0.33])
+
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_body",
+        body_mat,
+        radius=1.0,
+        location=(0.0, 0.0, 0.02 * scale),
+        scale=(body_len, body_w, body_h),
+    )
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_belly",
+        belly_mat,
+        radius=1.0,
+        location=(0.02 * scale, 0.0, -0.006 * scale),
+        scale=(body_len * 0.72, body_w * 0.72, body_h * 0.33),
+        segments=20,
+        ring_count=8,
+    )
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_head",
+        body_mat,
+        radius=1.0,
+        location=(body_len * 0.9, 0.0, 0.036 * scale),
+        scale=(head_size, head_size * 0.8, head_size * 0.72),
+    )
+    for side in [-1.0, 1.0]:
+        _add_child_ellipsoid(
+            root,
+            f"{pest['pest_id']}_ear_{side:+.0f}",
+            body_mat,
+            radius=1.0,
+            location=(body_len * 0.91, side * head_size * 0.55, head_size * 1.0),
+            scale=(head_size * 0.22, head_size * 0.18, head_size * 0.28),
+            segments=12,
+            ring_count=6,
+        )
+        _add_child_ellipsoid(
+            root,
+            f"{pest['pest_id']}_eye_{side:+.0f}",
+            dark_mat,
+            radius=1.0,
+            location=(body_len * 1.25, side * head_size * 0.35, head_size * 0.65),
+            scale=(head_size * 0.08, head_size * 0.06, head_size * 0.06),
+            segments=8,
+            ring_count=4,
+        )
+        for leg_x in [-body_len * 0.35, body_len * 0.45]:
+            _add_child_cylinder(
+                root,
+                f"{pest['pest_id']}_leg_{leg_x:.2f}_{side:+.0f}",
+                dark_mat,
+                radius=0.009 * scale,
+                depth=0.11 * scale,
+                location=(leg_x, side * body_w * 0.62, -body_h * 0.54),
+                rotation=(math.radians(82), 0.0, math.radians(8 * side)),
+            )
+
+    _add_child_cylinder(
+        root,
+        f"{pest['pest_id']}_tail",
+        pink_mat,
+        radius=0.012 * scale,
+        depth=tail_len,
+        location=(-body_len * 0.95, 0.0, 0.006 * scale),
+        rotation=(0.0, math.radians(86), 0.0),
+    )
+    return root
+
+
+def build_cockroach_pest(pest: dict):
+    root = _create_root(pest["pest_id"], pest)
+    scale = float(pest["scale"])
+    shell_mat = make_pest_material(f"{pest['pest_id']}_shell_mat", [0.20, 0.08, 0.035], 0.62)
+    stripe_mat = make_pest_material(f"{pest['pest_id']}_stripe_mat", [0.42, 0.18, 0.07], 0.55)
+    leg_mat = make_pest_material(f"{pest['pest_id']}_leg_mat", [0.08, 0.035, 0.018], 0.72)
+
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_abdomen",
+        shell_mat,
+        radius=1.0,
+        location=(-0.025 * scale, 0.0, 0.018 * scale),
+        scale=(0.105 * scale, 0.052 * scale, 0.024 * scale),
+        segments=28,
+        ring_count=10,
+    )
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_thorax",
+        stripe_mat,
+        radius=1.0,
+        location=(0.07 * scale, 0.0, 0.021 * scale),
+        scale=(0.058 * scale, 0.046 * scale, 0.021 * scale),
+        segments=20,
+        ring_count=8,
+    )
+    _add_child_ellipsoid(
+        root,
+        f"{pest['pest_id']}_head",
+        shell_mat,
+        radius=1.0,
+        location=(0.125 * scale, 0.0, 0.02 * scale),
+        scale=(0.026 * scale, 0.03 * scale, 0.017 * scale),
+        segments=16,
+        ring_count=8,
+    )
+
+    for side in [-1.0, 1.0]:
+        for index, leg_x in enumerate([-0.045, 0.02, 0.085]):
+            angle = math.radians(52 + index * 9)
+            _add_child_cylinder(
+                root,
+                f"{pest['pest_id']}_leg_{index}_{side:+.0f}",
+                leg_mat,
+                radius=0.0045 * scale,
+                depth=0.12 * scale,
+                location=(leg_x * scale, side * 0.067 * scale, 0.001 * scale),
+                rotation=(math.radians(90), angle * side, math.radians(18 * side)),
+            )
+        _add_child_cylinder(
+            root,
+            f"{pest['pest_id']}_antenna_{side:+.0f}",
+            leg_mat,
+            radius=0.0028 * scale,
+            depth=0.12 * scale,
+            location=(0.158 * scale, side * 0.035 * scale, 0.031 * scale),
+            rotation=(math.radians(82), math.radians(74) * side, math.radians(25 * side)),
+        )
+    return root
+
+
+def build_simple_pest(pest: dict):
     pest_type = pest["pest_type"]
     location = tuple(pest["path"]["start"])
 
@@ -140,6 +428,14 @@ def build_pest(pest: dict):
     bpy.ops.object.shade_smooth()
     obj.data.materials.append(make_material(f"{pest['pest_id']}_mat", color, 0.7))
     return obj
+
+
+def build_pest(pest: dict, asset_style: str):
+    if asset_style == "simple":
+        return build_simple_pest(pest)
+    if pest["pest_type"] == "cockroach":
+        return build_cockroach_pest(pest)
+    return build_rodent_pest(pest, is_rat=pest["pest_type"] == "rat")
 
 
 def animate_pest(obj, pest: dict, frame_end: int) -> None:
@@ -230,10 +526,26 @@ def setup_render(args: argparse.Namespace) -> None:
         print("Configured Cycles rendering on CPU.")
 
 
+def _mesh_objects_for_bbox(obj) -> list:
+    objects = []
+    candidates = [obj, *getattr(obj, "children_recursive", [])]
+    for candidate in candidates:
+        if getattr(candidate, "type", None) == "MESH":
+            objects.append(candidate)
+    return objects
+
+
 def compute_bbox(obj, camera, scene, width: int, height: int):
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    obj_eval = obj.evaluated_get(depsgraph)
-    corners_world = [obj_eval.matrix_world @ Vector(corner) for corner in obj_eval.bound_box]
+    corners_world = []
+    for mesh_obj in _mesh_objects_for_bbox(obj):
+        obj_eval = mesh_obj.evaluated_get(depsgraph)
+        corners_world.extend(
+            obj_eval.matrix_world @ Vector(corner)
+            for corner in obj_eval.bound_box
+        )
+    if not corners_world:
+        return None
 
     xs = []
     ys = []
@@ -270,16 +582,19 @@ def main() -> None:
 
     clear_scene()
     setup_render(args)
-    build_room(layout)
-    for fixture in layout["fixtures"]:
-        build_fixture(fixture)
     camera = setup_camera(layout)
+    if parse_bool(args.photo_background):
+        add_photo_background(layout, camera, bpy.context.scene)
+    else:
+        build_room(layout)
+        for fixture in layout["fixtures"]:
+            build_fixture(fixture)
     setup_lighting(layout)
 
     pest_objects = []
     frame_end = args.fps * args.seconds
     for pest in layout["pests"]:
-        obj = build_pest(pest)
+        obj = build_pest(pest, args.pest_asset_style)
         animate_pest(obj, pest, frame_end)
         pest_objects.append((pest["pest_type"], obj))
 

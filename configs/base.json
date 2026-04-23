@@ -18,6 +18,8 @@
     "execute": false,
     "render_device": "CPU",
     "compute_backend": "AUTO",
+    "photo_background": true,
+    "pest_asset_style": "procedural_v2",
     "batch_output_dir": "artifacts/batch_render",
     "batch_limit": 5,
     "batch_enabled_only": true,

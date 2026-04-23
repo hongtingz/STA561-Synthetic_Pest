@@ -18,6 +18,8 @@
     "execute": true,
     "render_device": "CPU",
     "compute_backend": "AUTO",
+    "photo_background": true,
+    "pest_asset_style": "procedural_v2",
     "batch_output_dir": "artifacts/batch_render_smoke",
     "batch_limit": 1,
     "batch_enabled_only": true,
