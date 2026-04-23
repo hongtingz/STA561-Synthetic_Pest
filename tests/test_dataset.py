@@ -130,7 +130,10 @@ def test_convert_batch_render_outputs_builds_coco_and_yolo(tmp_path: Path) -> No
 
     assert len(coco_train["images"]) == 1
     assert coco_train["annotations"][0]["category_id"] == 1
-    assert coco_train["images"][0]["file_name"] == "artifacts/batch_render/kitchen_0001/frames/frame_00001.png"
+    assert (
+        coco_train["images"][0]["file_name"]
+        == "artifacts/batch_render/kitchen_0001/frames/frame_00001.png"
+    )
 
     assert len(coco_val["images"]) == 1
     assert coco_val["annotations"][0]["category_id"] == 2

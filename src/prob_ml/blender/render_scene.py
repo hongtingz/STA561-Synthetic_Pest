@@ -80,30 +80,73 @@ def make_image_material(name: str, image_path: Path):
     return material
 
 
-def make_pest_material(name: str, color: list[float], roughness: float = 0.78):
+def make_pest_material(
+    name: str,
+    color: list[float],
+    roughness: float = 0.78,
+    *,
+    bump_strength: float = 0.04,
+):
     material = bpy.data.materials.new(name=name)
     material.use_nodes = True
-    bsdf = next(node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    bsdf = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Roughness"].default_value = roughness
     if "Metallic" in bsdf.inputs:
         bsdf.inputs["Metallic"].default_value = 0.0
+
+    noise = nodes.new(type="ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 38.0
+    noise.inputs["Detail"].default_value = 9.0
+    noise.inputs["Roughness"].default_value = 0.62
+    bump = nodes.new(type="ShaderNodeBump")
+    bump.inputs["Strength"].default_value = bump_strength
+    bump.inputs["Distance"].default_value = 0.028
+    links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    return material
+
+
+def make_shadow_material(name: str, alpha: float = 0.32):
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+    material.blend_method = "BLEND"
+    material.show_transparent_back = False
+    nodes = material.node_tree.nodes
+    bsdf = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Base Color"].default_value = (0.018, 0.015, 0.012, alpha)
+    bsdf.inputs["Alpha"].default_value = alpha
+    bsdf.inputs["Roughness"].default_value = 0.95
     return material
 
 
 def add_photo_background(layout: dict, camera, scene) -> None:
-    """Place the source kitchen photo on a renderable plane behind the pests."""
+    """Place the source kitchen photo on a camera-facing plane behind the pests."""
     photo_path = Path(layout.get("source_photo", ""))
     if not photo_path.exists():
         print(f"Photo background missing, keeping synthetic room only: {photo_path}")
         return
 
     distance = max(12.0, float(layout["room"]["depth"]) * 2.4)
-    frame = camera.data.view_frame(scene=scene)
-    xs = [corner.x for corner in frame]
-    ys = [corner.y for corner in frame]
-    width = (max(xs) - min(xs)) * distance
-    height = (max(ys) - min(ys)) * distance
+    frame_width = 2.0 * distance * math.tan(camera.data.angle_x / 2.0)
+    frame_height = 2.0 * distance * math.tan(camera.data.angle_y / 2.0)
+    frame_aspect = frame_width / frame_height
+
+    image = bpy.data.images.load(str(photo_path))
+    image_width, image_height = image.size
+    image_aspect = image_width / image_height if image_height else frame_aspect
+    if image_aspect >= frame_aspect:
+        height = frame_height
+        width = height * image_aspect
+    else:
+        width = frame_width
+        height = width / image_aspect
+
+    # A small overscan avoids visible borders from lens/aspect rounding.
+    width *= 1.08
+    height *= 1.08
 
     local_center = Vector((0.0, 0.0, -distance))
     world_center = camera.matrix_world @ local_center
@@ -114,7 +157,7 @@ def add_photo_background(layout: dict, camera, scene) -> None:
     )
     plane = bpy.context.active_object
     plane.name = "source_photo_background"
-    plane.scale = (width / 2.0, height / 2.0, 1.0)
+    plane.scale = (width, height, 1.0)
     plane.data.materials.append(make_image_material("source_photo_mat", photo_path))
     plane.hide_select = True
     print(f"Using source photo background: {photo_path}")
@@ -237,6 +280,27 @@ def _add_child_cylinder(
     return obj
 
 
+def _add_contact_shadow(
+    root,
+    pest_id: str,
+    *,
+    location: tuple[float, float, float],
+    scale: tuple[float, float, float],
+    alpha: float,
+) -> None:
+    shadow = _add_child_ellipsoid(
+        root,
+        f"{pest_id}_contact_shadow",
+        make_shadow_material(f"{pest_id}_contact_shadow_mat", alpha),
+        radius=1.0,
+        location=location,
+        scale=scale,
+        segments=32,
+        ring_count=8,
+    )
+    shadow["exclude_from_bbox"] = True
+
+
 def build_rodent_pest(pest: dict, *, is_rat: bool):
     root = _create_root(pest["pest_id"], pest)
     scale = float(pest["scale"])
@@ -261,6 +325,14 @@ def build_rodent_pest(pest: dict, *, is_rat: bool):
     belly_mat = make_pest_material(f"{pest['pest_id']}_belly_mat", belly_color)
     dark_mat = make_pest_material(f"{pest['pest_id']}_dark_mat", [0.05, 0.045, 0.04])
     pink_mat = make_pest_material(f"{pest['pest_id']}_tail_mat", [0.58, 0.36, 0.33])
+
+    _add_contact_shadow(
+        root,
+        pest["pest_id"],
+        location=(-body_len * 0.03, 0.0, -body_h * 0.72),
+        scale=(body_len * 1.35, body_w * 1.25, 0.004 * scale),
+        alpha=0.28,
+    )
 
     _add_child_ellipsoid(
         root,
@@ -335,9 +407,27 @@ def build_rodent_pest(pest: dict, *, is_rat: bool):
 def build_cockroach_pest(pest: dict):
     root = _create_root(pest["pest_id"], pest)
     scale = float(pest["scale"])
-    shell_mat = make_pest_material(f"{pest['pest_id']}_shell_mat", [0.20, 0.08, 0.035], 0.62)
-    stripe_mat = make_pest_material(f"{pest['pest_id']}_stripe_mat", [0.42, 0.18, 0.07], 0.55)
-    leg_mat = make_pest_material(f"{pest['pest_id']}_leg_mat", [0.08, 0.035, 0.018], 0.72)
+    shell_mat = make_pest_material(
+        f"{pest['pest_id']}_shell_mat",
+        [0.16, 0.065, 0.028],
+        0.68,
+        bump_strength=0.025,
+    )
+    stripe_mat = make_pest_material(
+        f"{pest['pest_id']}_stripe_mat",
+        [0.34, 0.14, 0.052],
+        0.6,
+        bump_strength=0.025,
+    )
+    leg_mat = make_pest_material(f"{pest['pest_id']}_leg_mat", [0.055, 0.025, 0.014], 0.78)
+
+    _add_contact_shadow(
+        root,
+        pest["pest_id"],
+        location=(0.02 * scale, 0.0, -0.006 * scale),
+        scale=(0.15 * scale, 0.085 * scale, 0.0025 * scale),
+        alpha=0.34,
+    )
 
     _add_child_ellipsoid(
         root,
@@ -517,6 +607,9 @@ def setup_render(args: argparse.Namespace) -> None:
     scene.frame_end = args.fps * args.seconds
     scene.view_settings.view_transform = "Filmic"
     scene.view_settings.look = "Medium Contrast"
+    if hasattr(scene.render, "use_motion_blur"):
+        scene.render.use_motion_blur = True
+        scene.render.motion_blur_shutter = 0.16
 
     render_device = args.render_device.upper()
     if render_device == "GPU" and _configure_cycles_gpu(args.compute_backend):
@@ -530,6 +623,8 @@ def _mesh_objects_for_bbox(obj) -> list:
     objects = []
     candidates = [obj, *getattr(obj, "children_recursive", [])]
     for candidate in candidates:
+        if candidate.get("exclude_from_bbox"):
+            continue
         if getattr(candidate, "type", None) == "MESH":
             objects.append(candidate)
     return objects

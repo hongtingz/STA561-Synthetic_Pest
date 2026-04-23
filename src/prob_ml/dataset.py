@@ -103,7 +103,9 @@ def _validate_bbox(
     return x, y, width, height
 
 
-def _group_records_by_split(records: list[KitchenPhotoRecord]) -> dict[str, list[KitchenPhotoRecord]]:
+def _group_records_by_split(
+    records: list[KitchenPhotoRecord],
+) -> dict[str, list[KitchenPhotoRecord]]:
     grouped: dict[str, list[KitchenPhotoRecord]] = defaultdict(list)
     for record in records:
         grouped[record.split].append(record)
@@ -449,7 +451,12 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
     outputs["neg_test_manifest"] = neg_manifest_path
     outputs["coco_neg_test"] = neg_coco_path
 
-    yolo_yaml = _write_yolo_dataset(output_root, positive_artifacts, negative_manifest, negative_sources)
+    yolo_yaml = _write_yolo_dataset(
+        output_root,
+        positive_artifacts,
+        negative_manifest,
+        negative_sources,
+    )
     outputs["yolo_data"] = yolo_yaml
 
     summary = {
