@@ -31,6 +31,13 @@ The render and dataset-packaging path now supports:
 - YOLO dataset export for fast detector baselines
 - negative-only real-kitchen holdout packaging for false-positive evaluation
 
+**Legacy standalone** (optional quick local test, outputs under `output/`): multi-pest
+scene (mouse, rat, cockroach), Cycles frames, and optional H.264 mux via `ffmpeg`.
+
+1. `blender --background --python demo/render_demo.py` — frames, `output/annotations.json`, and `output/synthetic_pest_video.mp4` if `ffmpeg` is on `PATH`
+2. `python demo/frames_to_video.py` — optional: rebuild MP4 from `output/frames/` without re-rendering Blender
+3. Feed annotations into the main pipeline with `pest-pipeline convert` (see configs under `configs/`) when you are ready to train on `artifacts/`
+
 Model training and inference are still intentionally scaffolded placeholders. The
 current repo provides:
 
