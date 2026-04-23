@@ -55,6 +55,16 @@ artifacts/batch_render*/
     layout_preview.svg
 ```
 
+Submission-facing deliverables:
+
+- Contribute the synthetic-data and DCC sections of the technical appendix.
+- Document the end-to-end render workflow so the instructor can reproduce:
+  kitchen photo -> layout spec -> rendered frames -> annotations.
+- Provide figures or screenshots for the executive summary and FAQ showing
+  representative generated kitchens, pests, and labeled outputs.
+- If a notebook demo is included, own the render/demo portion that shows one
+  image being converted into labeled synthetic frames.
+
 ## Owner 2: Dataset Packaging And Evaluation Interface
 
 This owner is responsible for turning generated render outputs into clean model
@@ -95,6 +105,16 @@ artifacts/dataset/
     images/
     labels/
 ```
+
+Submission-facing deliverables:
+
+- Contribute the dataset-packaging and annotation-format sections of the technical appendix.
+- Document the COCO/YOLO export contract, split definitions, and negative-only
+  holdout design clearly enough for full reproduction.
+- Provide tables or summaries for the executive summary / FAQ describing dataset
+  size, split counts, and category mapping.
+- If a notebook demo is included, own the dataset-inspection portion that shows
+  rendered annotations becoming training-ready files.
 
 Current Owner 2 implementation status:
 
@@ -140,6 +160,17 @@ artifacts/eval/
   eval_report.json
   predictions.json
 ```
+
+Submission-facing deliverables:
+
+- Contribute the detector-training, inference, and evaluation sections of the
+  technical appendix.
+- Provide the main quantitative results for the executive summary:
+  true detection rate, false positive rate, and key example predictions.
+- Draft the FAQ answers about why the model was chosen, how it was evaluated,
+  what failed, and what future improvements are most promising.
+- If a notebook demo is included, own the training/evaluation demo showing how
+  predictions are generated from the packaged dataset or held-out frames.
 
 ## Shared Dataset Contract
 

@@ -25,3 +25,14 @@ halpin/synthetic_dataset_creation_blender)
 of static images. (Is video even necessary for this task? Feel free to argue one way or the
 other.)
 - Omniverse from NVDIA may also be of interest
+
+## What You'll Turn In
+
+- Two-page executive summary explaining the problem, your approach, results, and future
+  work. This should be written without mathematical notation or technical jargon.
+- An FAQ (2-5 pages) with questions you think an intelligent and skeptical reader might ask
+  and your answers.
+- A technical appendix (no length requirement). This will be the bulk of your submission. This
+  will include all technical details, code, and results. I must be able to reproduce your results
+  from only the technical description and links to raw datasets. Where appropriate, include a
+  demo in a jupyter notebook.
