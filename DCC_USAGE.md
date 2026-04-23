@@ -15,6 +15,7 @@ This project keeps two main runtime configs:
 The Slurm scripts target Duke's H200 scavenger partition:
 
 - Partition: `scavenger-h200`
+- Account: `scavenger-h200`
 - GPU request: `gpu:h200:1`
 
 ## Before You Submit
