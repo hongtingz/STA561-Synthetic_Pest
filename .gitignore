@@ -20,3 +20,18 @@ data/
 logs/
 tmp/
 
+# Large local 3D assets. Keep folder docs and credits in git, but do not commit
+# downloaded model/texture binaries.
+assets/pests/**/*.blend
+assets/pests/**/*.fbx
+assets/pests/**/*.glb
+assets/pests/**/*.gltf
+assets/pests/**/*.obj
+assets/pests/**/*.mtl
+assets/pests/**/*.bin
+assets/pests/**/*.png
+assets/pests/**/*.jpg
+assets/pests/**/*.jpeg
+assets/pests/**/*.tga
+assets/pests/**/*.exr
+assets/pests/**/*.zip
