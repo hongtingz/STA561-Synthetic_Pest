@@ -62,6 +62,7 @@ For the original course project description in Markdown form, see
 ## Repository Layout
 
 ```text
+assets/           Local third-party 3D assets and attribution notes
 configs/          Runtime configuration files
 jobs/             DCC / Slurm job scripts
 scripts/          Small operational shell helpers
@@ -81,6 +82,9 @@ tests/            Lightweight tests for the scaffold
   Derived but non-final assets such as layout specs and cached preprocessing outputs.
 - `artifacts/`
   Generated outputs only: rendered frames, converted annotations, trained models, previews.
+- `assets/pests/`
+  Optional downloaded pest models. Large model and texture binaries are ignored by
+  git; keep attribution in `assets/pests/CREDITS.md`.
 
 Key dataset outputs produced by `pest-pipeline convert`:
 

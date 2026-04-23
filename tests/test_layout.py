@@ -166,7 +166,8 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
                 "render_device": "GPU",
                 "compute_backend": "CUDA",
                 "photo_background": True,
-                "pest_asset_style": "procedural_v2",
+                "pest_asset_style": "hybrid",
+                "asset_root": "assets/pests",
                 "fps": 30,
                 "seconds": 30,
                 "resolution_width": 1280,
@@ -198,7 +199,9 @@ def test_build_blender_command_contains_layout_and_outputs(tmp_path: Path) -> No
     assert "--photo-background" in command
     assert "true" in command
     assert "--pest-asset-style" in command
-    assert "procedural_v2" in command
+    assert "hybrid" in command
+    assert "--asset-root" in command
+    assert "assets/pests" in command
 
 
 def test_photo_cues_change_layout_geometry(tmp_path: Path) -> None:

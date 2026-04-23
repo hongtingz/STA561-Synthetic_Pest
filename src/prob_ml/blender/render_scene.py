@@ -33,7 +33,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--render-device", default="CPU")
     parser.add_argument("--compute-backend", default="AUTO")
     parser.add_argument("--photo-background", default="false")
-    parser.add_argument("--pest-asset-style", default="procedural_v2")
+    parser.add_argument("--pest-asset-style", default="asset_library")
+    parser.add_argument("--asset-root", default="assets/pests")
     return parser.parse_args(argv)
 
 
@@ -44,6 +45,17 @@ def load_layout(path: Path) -> dict:
 
 def parse_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def resolve_asset_root(asset_root: str) -> Path:
+    path = Path(asset_root)
+    if path.is_absolute():
+        return path
+    return repo_root() / path
 
 
 def clear_scene() -> None:
@@ -301,20 +313,187 @@ def _add_contact_shadow(
     shadow["exclude_from_bbox"] = True
 
 
+def _asset_model_path(pest_type: str, asset_root: Path) -> Path | None:
+    asset_dirs = {
+        "mouse": asset_root / "rodent" / "scary_ratmouse",
+        "rat": asset_root / "rodent" / "scary_ratmouse",
+        "cockroach": asset_root / "cockroach" / "ck_cockroach",
+    }
+    asset_dir = asset_dirs.get(pest_type)
+    if asset_dir is None or not asset_dir.exists():
+        return None
+
+    for extension in ["*.glb", "*.gltf", "*.fbx", "*.obj"]:
+        matches = sorted(asset_dir.glob(extension))
+        if matches:
+            return matches[0]
+    return None
+
+
+def _import_model(path: Path) -> list:
+    before = set(bpy.data.objects)
+    suffix = path.suffix.lower()
+    if suffix in {".glb", ".gltf"}:
+        bpy.ops.import_scene.gltf(filepath=str(path))
+    elif suffix == ".fbx":
+        bpy.ops.import_scene.fbx(filepath=str(path))
+    elif suffix == ".obj" and hasattr(bpy.ops.wm, "obj_import"):
+        bpy.ops.wm.obj_import(filepath=str(path))
+    elif suffix == ".obj":
+        bpy.ops.import_scene.obj(filepath=str(path))
+    else:
+        raise ValueError(f"Unsupported asset format: {path}")
+    return [obj for obj in bpy.data.objects if obj not in before]
+
+
+def _bbox_for_objects(objects: list) -> tuple[Vector, Vector] | None:
+    mesh_objects = [obj for obj in objects if getattr(obj, "type", None) == "MESH"]
+    if not mesh_objects:
+        return None
+
+    corners = []
+    for obj in mesh_objects:
+        corners.extend(obj.matrix_world @ Vector(corner) for corner in obj.bound_box)
+    min_corner = Vector(
+        (min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners))
+    )
+    max_corner = Vector(
+        (max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners))
+    )
+    return min_corner, max_corner
+
+
+def _asset_target_size(pest: dict) -> tuple[float, float, float]:
+    scale = float(pest["scale"])
+    if pest["pest_type"] == "rat":
+        return 0.46 * scale, 0.16 * scale, 0.11 * scale
+    if pest["pest_type"] == "mouse":
+        return 0.31 * scale, 0.11 * scale, 0.075 * scale
+    return 0.32 * scale, 0.14 * scale, 0.055 * scale
+
+
+def _safe_axis_scale(target: float, source: float) -> float:
+    return target / source if source > 0 else 1.0
+
+
+def _asset_visual_transform(
+    dimensions: Vector,
+    target_length: float,
+    target_width: float,
+    target_height: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float], str]:
+    """Map a downloaded asset's source axes into a low, ground-running pest shape."""
+    max_dimension = max(dimensions.x, dimensions.y, dimensions.z)
+    if dimensions.y >= max_dimension * 0.85:
+        scale = (
+            _safe_axis_scale(target_width, dimensions.x),
+            _safe_axis_scale(target_length, dimensions.y),
+            _safe_axis_scale(target_height, dimensions.z),
+        )
+        return scale, (0.0, 0.0, math.radians(-90)), "y"
+    if dimensions.x >= max_dimension * 0.85:
+        scale = (
+            _safe_axis_scale(target_length, dimensions.x),
+            _safe_axis_scale(target_width, dimensions.y),
+            _safe_axis_scale(target_height, dimensions.z),
+        )
+        return scale, (0.0, 0.0, 0.0), "x"
+
+    scale = (
+        _safe_axis_scale(target_width, dimensions.x),
+        _safe_axis_scale(target_height, dimensions.y),
+        _safe_axis_scale(target_length, dimensions.z),
+    )
+    return scale, (0.0, math.radians(90), 0.0), "z"
+
+
+def _create_asset_root(name: str, pest: dict):
+    root = bpy.data.objects.new(name=name, object_data=None)
+    root.empty_display_type = "PLAIN_AXES"
+    root.empty_display_size = 0.18
+    bpy.context.collection.objects.link(root)
+    return root
+
+
+def build_asset_pest(pest: dict, asset_root: Path):
+    model_path = _asset_model_path(pest["pest_type"], asset_root)
+    if model_path is None:
+        return None
+
+    try:
+        imported_objects = _import_model(model_path)
+    except Exception as exc:  # pragma: no cover - Blender import behavior varies
+        print(f"Could not import pest asset {model_path}; using procedural fallback: {exc}")
+        return None
+
+    bbox = _bbox_for_objects(imported_objects)
+    if bbox is None:
+        print(f"Pest asset contains no mesh objects {model_path}; using procedural fallback.")
+        return None
+
+    root = _create_asset_root(pest["pest_id"], pest)
+    visual = bpy.data.objects.new(name=f"{pest['pest_id']}_asset_visual", object_data=None)
+    visual.empty_display_type = "PLAIN_AXES"
+    visual.empty_display_size = 0.12
+    visual.parent = root
+    bpy.context.collection.objects.link(visual)
+
+    imported_set = set(imported_objects)
+    top_level_objects = [obj for obj in imported_objects if obj.parent not in imported_set]
+    min_corner, max_corner = bbox
+    center = (min_corner + max_corner) / 2.0
+    dimensions = max_corner - min_corner
+    longest_axis = max(dimensions.x, dimensions.y, dimensions.z)
+    if longest_axis <= 0:
+        print(f"Pest asset has invalid dimensions {model_path}; using procedural fallback.")
+        return None
+
+    for obj in top_level_objects:
+        obj.parent = visual
+        obj.location.x -= center.x
+        obj.location.y -= center.y
+        obj.location.z -= min_corner.z
+
+    target_length, target_width, target_height = _asset_target_size(pest)
+    visual.scale, visual.rotation_euler, source_axis = _asset_visual_transform(
+        dimensions,
+        target_length,
+        target_width,
+        target_height,
+    )
+    visual.location.z = target_height * 0.5
+
+    _add_contact_shadow(
+        root,
+        pest["pest_id"],
+        location=(0.0, 0.0, -0.01),
+        scale=(target_length * 0.48, target_width * 0.62, 0.002),
+        alpha=0.28 if pest["pest_type"] in {"mouse", "rat"} else 0.34,
+    )
+
+    root.location = tuple(pest["path"]["start"])
+    root.rotation_euler = (0.0, 0.0, _path_yaw(pest))
+    print(
+        f"Using pest asset for {pest['pest_type']}: {model_path} "
+        f"axis={source_axis} dims=({dimensions.x:.3f},{dimensions.y:.3f},{dimensions.z:.3f})"
+    )
+    return root
+
+
 def build_rodent_pest(pest: dict, *, is_rat: bool):
     root = _create_root(pest["pest_id"], pest)
     scale = float(pest["scale"])
     if is_rat:
-        body_color = [0.25, 0.24, 0.23]
-        belly_color = [0.43, 0.39, 0.35]
+        body_color = [0.15, 0.145, 0.135]
+        belly_color = [0.28, 0.25, 0.22]
         body_len = 0.24 * scale
         body_w = 0.105 * scale
         body_h = 0.075 * scale
         head_size = 0.065 * scale
         tail_len = 0.24 * scale
     else:
-        body_color = [0.45, 0.41, 0.36]
-        belly_color = [0.62, 0.56, 0.49]
+        body_color = [0.24, 0.215, 0.185]
+        belly_color = [0.36, 0.31, 0.26]
         body_len = 0.16 * scale
         body_w = 0.075 * scale
         body_h = 0.055 * scale
@@ -520,7 +699,16 @@ def build_simple_pest(pest: dict):
     return obj
 
 
-def build_pest(pest: dict, asset_style: str):
+def build_pest(pest: dict, asset_style: str, asset_root: Path):
+    if asset_style in {"asset", "asset_library", "realistic"}:
+        asset_pest = build_asset_pest(pest, asset_root)
+        if asset_pest is not None:
+            return asset_pest
+    if asset_style == "hybrid" and pest["pest_type"] == "cockroach":
+        asset_pest = build_asset_pest(pest, asset_root)
+        if asset_pest is not None:
+            return asset_pest
+
     if asset_style == "simple":
         return build_simple_pest(pest)
     if pest["pest_type"] == "cockroach":
@@ -545,15 +733,16 @@ def setup_camera(layout: dict):
     return camera
 
 
-def setup_lighting(layout: dict) -> None:
+def setup_lighting(layout: dict, *, photo_background: bool) -> None:
+    energy_multiplier = 0.24 if photo_background else 1.0
     for light in layout["lights"]:
         bpy.ops.object.light_add(type=light["kind"], location=tuple(light["location"]))
         obj = bpy.context.active_object
         obj.name = light["name"]
-        obj.data.energy = light["energy"]
+        obj.data.energy = light["energy"] * energy_multiplier
         obj.data.color = tuple(light["color"])
         if light["kind"] == "AREA":
-            obj.data.size = 3.0
+            obj.data.size = 4.6 if photo_background else 3.0
 
 
 def _configure_cycles_gpu(compute_backend: str) -> bool:
@@ -678,18 +867,20 @@ def main() -> None:
     clear_scene()
     setup_render(args)
     camera = setup_camera(layout)
-    if parse_bool(args.photo_background):
+    photo_background = parse_bool(args.photo_background)
+    if photo_background:
         add_photo_background(layout, camera, bpy.context.scene)
     else:
         build_room(layout)
         for fixture in layout["fixtures"]:
             build_fixture(fixture)
-    setup_lighting(layout)
+    setup_lighting(layout, photo_background=photo_background)
 
     pest_objects = []
     frame_end = args.fps * args.seconds
+    asset_root = resolve_asset_root(args.asset_root)
     for pest in layout["pests"]:
-        obj = build_pest(pest, args.pest_asset_style)
+        obj = build_pest(pest, args.pest_asset_style, asset_root)
         animate_pest(obj, pest, frame_end)
         pest_objects.append((pest["pest_type"], obj))
 

@@ -456,26 +456,28 @@ def _build_pest_specs(
     scene_seed: int,
 ) -> list[PestInstanceSpec]:
     rng = random.Random(scene_seed)
-    anchor_y = -room.depth * (0.12 + (1.0 - photo_cues.floor_line_ratio) * 0.08)
+    # Keep pests in the near/lower part of the camera frustum. This makes photo
+    # background renders look grounded instead of placing pests on counters.
+    anchor_y = -room.depth * (0.28 + photo_cues.floor_line_ratio * 0.12)
     base_paths = [
         (
-            (-room.width * 0.32, anchor_y, 0.0),
-            (room.width * 0.12, anchor_y + room.depth * 0.06, 0.0),
+            (-room.width * 0.34, anchor_y, 0.0),
+            (room.width * 0.12, anchor_y + room.depth * 0.07, 0.0),
         ),
         (
-            (room.width * 0.26, anchor_y + room.depth * 0.08, 0.0),
-            (-room.width * 0.06, anchor_y + room.depth * 0.12, 0.0),
+            (room.width * 0.26, anchor_y + room.depth * 0.05, 0.0),
+            (-room.width * 0.08, anchor_y + room.depth * 0.12, 0.0),
         ),
         (
-            (-room.width * 0.08, room.depth * 0.16, 0.0),
-            (room.width * 0.24, room.depth * 0.18, 0.0),
+            (-room.width * 0.18, anchor_y + room.depth * 0.15, 0.0),
+            (room.width * 0.24, anchor_y + room.depth * 0.18, 0.0),
         ),
     ]
 
     pests: list[PestInstanceSpec] = []
     for index, pest_type in enumerate(pest_types):
         start, end = base_paths[index % len(base_paths)]
-        scale = 1.0 if pest_type == "mouse" else 1.28 if pest_type == "rat" else 0.52
+        scale = 0.82 if pest_type == "mouse" else 1.05 if pest_type == "rat" else 0.45
         elevation = 0.08 if pest_type in {"mouse", "rat"} else 0.03
         jitter_x = rng.uniform(-0.14, 0.14)
         jitter_y = rng.uniform(-0.12, 0.12)
