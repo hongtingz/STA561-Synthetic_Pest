@@ -78,9 +78,9 @@ are implemented and tested. The repository can:
 - Package those annotations into COCO and YOLO datasets
 - Preserve real kitchen images with no pests as a separate negative-only split
 
-Training and inference are still under active development. Final quantitative
-results, including true detection rate and false positive rate, should be added
-once detector experiments are complete.
+Training and inference now have a lightweight detector baseline entrypoint.
+Final quantitative results, including true detection rate and false positive
+rate, should be added once detector experiments are run and selected.
 
 ### Preliminary Interpretation
 
@@ -169,7 +169,9 @@ that only handled one class would not fully satisfy the project specification.
 COCO is a widely used, standard format for object detection research and makes
 the dataset contract explicit. YOLO format is convenient for fast detector
 baselines and practical training workflows. Exporting both keeps the dataset
-portable across model choices.
+portable across model choices. The repository includes a built-in Faster R-CNN
+training path and an optional Ultralytics YOLO runner for a second detector
+baseline when the dependency and weight-download environment is available.
 
 ### 10. What is the role of the real kitchen images with no pests?
 
@@ -366,9 +368,16 @@ At the time of this draft:
 - render preparation and Blender integration are implemented
 - multi-class pest rendering support is implemented
 - dataset conversion to COCO and YOLO is implemented
+- dataset sanity checking and bbox overlay generation are implemented
 - DCC configuration and job scripts are present
-- training is still a placeholder
-- inference and evaluation are still placeholders
+- a lightweight Faster R-CNN detector training baseline is implemented
+- detector training supports augmentation, optional pretrained weights, and
+  threshold-sweep reporting
+- checkpoint evaluation supports validation/negative holdout reports and
+  failure-case visualizations
+- an optional YOLO training entrypoint is implemented
+- single-image detector inference is implemented
+- final trained checkpoints and metric tables are still pending
 
 This means the project already contains a substantial amount of the data and
 engineering pipeline, but the final model and metric-reporting stage are still
@@ -417,7 +426,7 @@ The most important current limitations are:
 - no large real positive pest dataset
 - a remaining realism gap between synthetic and real images
 - dependence on asset quality for visual fidelity
-- training and inference stages still under active development
+- final training runs and inference result selection still pending
 
 These limitations matter because they affect how strongly we can generalize
 results beyond the synthetic or semi-synthetic setting.
@@ -427,7 +436,8 @@ results beyond the synthetic or semi-synthetic setting.
 The most promising next steps are:
 
 - complete detector training on the exported datasets
-- compare at least one practical detector baseline, such as YOLO
+- run the optional YOLO comparison if `ultralytics` and pretrained weights are
+  available in the training environment
 - improve qualitative realism of pest assets and scene interactions
 - increase background diversity through real-image-driven generation
 - refine evaluation on real negative images and future real positive data

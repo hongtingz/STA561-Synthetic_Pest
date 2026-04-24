@@ -16,10 +16,10 @@ The project currently has:
 
 The project still needs:
 
-- Detector training
-- Detector inference
+- Final detector training runs on rendered datasets
+- Final inference examples and qualitative prediction figures
 - Evaluation for true detection rate and false positive rate
-- Final interface cleanup between dataset export and detector training
+- Final interface cleanup between dataset export, detector training, and reporting
 
 ## Owner 1 (Hongting): Synthetic Data And DCC Pipeline
 
@@ -138,11 +138,11 @@ Primary files:
 
 Responsibilities:
 
-- Implement detector training in `src/prob_ml/train.py`.
+- Run and refine detector training in `src/prob_ml/train.py`.
 - Use a detection model, not a pure image classifier.
 - Read the packaged dataset produced by `src/prob_ml/dataset.py`.
 - Save checkpoints and model artifacts under `artifacts/models/`.
-- Implement inference in `src/prob_ml/infer.py`.
+- Run and refine inference in `src/prob_ml/infer.py`.
 - Generate predicted bounding boxes, class labels, and confidence scores.
 - Implement evaluation reports for detection quality.
 - Track true detection rate and false positive rate.
@@ -278,16 +278,35 @@ artifacts/dataset/coco_val.json
 artifacts/dataset/yolo/data.yaml
 ```
 
-5. Owner 3 trains:
+5. Owner 2 checks dataset quality:
+
+```bash
+uv run pest-pipeline sanity-check --config configs/base.json
+```
+
+6. Owner 3 trains:
 
 ```bash
 uv run pest-pipeline train --config configs/base.json
 ```
 
-6. Owner 3 evaluates:
+7. Owner 3 evaluates:
+
+```bash
+uv run pest-pipeline evaluate --config configs/base.json
+```
+
+8. Owner 3 runs example inference:
 
 ```bash
 uv run pest-pipeline infer --config configs/base.json
+```
+
+Optional YOLO comparison:
+
+```bash
+uv add ultralytics
+uv run pest-pipeline train-yolo --config configs/dcc_gpu.json
 ```
 
 ## Model Guidance
@@ -302,8 +321,15 @@ Reasonable detector options:
 - YOLO-style detector if the dependency footprint stays manageable
 - ViT-backed detector if time allows
 
-For the first working baseline, prioritize a reliable detector pipeline over a
-complex architecture.
+The repo now includes a built-in Faster R-CNN path with augmentation, optional
+pretrained weights, and threshold-sweep reporting. YOLO is available as an
+optional comparison path through `pest-pipeline train-yolo`; keep Faster R-CNN
+as the fallback if dependency installation or pretrained-weight downloads are
+unreliable.
+
+Use `pest-pipeline sanity-check` before model training to catch bbox, class, and
+split-leakage problems. Use `pest-pipeline evaluate` after training to generate
+the final threshold table and failure-case visualizations.
 
 ## Evaluation Target
 
@@ -318,6 +344,9 @@ The evaluation code should report:
 - Overall false positive rate
 - Per-class detection rates for mouse, rat, and cockroach
 - Number of evaluated frames
+- Threshold-sweep values, especially around 0.3, 0.5, and 0.7, so the team can
+  choose a confidence cutoff that controls false positives
+- False-positive and false-negative example images for the final presentation
 - Number of ground-truth boxes
 - Number of predicted boxes
 

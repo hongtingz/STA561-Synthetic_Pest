@@ -39,17 +39,59 @@
     "video_output": "artifacts/render/video.mp4"
   },
   "training": {
-    "model_name": "google/vit-base-patch16-224",
-    "output_dir": "artifacts/models/vit",
-    "epochs": 10,
-    "batch_size": 8,
-    "learning_rate": 2e-5,
+    "model_name": "fasterrcnn_mobilenet_v3_large_320_fpn",
+    "detector_model": "fasterrcnn_mobilenet_v3_large_320_fpn",
+    "output_dir": "artifacts/models/detector",
+    "train_annotations": "artifacts/dataset/coco_train.json",
+    "val_annotations": "artifacts/dataset/coco_val.json",
+    "neg_test_annotations": "artifacts/dataset/coco_neg_test.json",
+    "epochs": 5,
+    "batch_size": 2,
+    "learning_rate": 1e-4,
+    "weight_decay": 1e-4,
+    "pretrained": false,
+    "augmentation": {
+      "horizontal_flip_probability": 0.5,
+      "color_jitter": {
+        "brightness": 0.2,
+        "contrast": 0.2,
+        "saturation": 0.1
+      }
+    },
     "val_split": 0.2,
-    "device": "auto"
+    "device": "auto",
+    "num_workers": 0,
+    "score_threshold": 0.5,
+    "iou_threshold": 0.5,
+    "threshold_sweep": [0.3, 0.5, 0.7]
+  },
+  "yolo": {
+    "data_yaml": "artifacts/dataset/yolo/data.yaml",
+    "output_dir": "artifacts/models/yolo",
+    "model": "yolov8n.pt",
+    "epochs": 20,
+    "imgsz": 640,
+    "batch": 8,
+    "workers": 4,
+    "device": "auto",
+    "name": "pest-yolo"
+  },
+  "sanity": {
+    "output_dir": "artifacts/reports",
+    "max_overlay_images": 12
+  },
+  "evaluation": {
+    "output_dir": "artifacts/reports/evaluation",
+    "checkpoint": "artifacts/models/detector/detector.pt",
+    "thresholds": [0.3, 0.5, 0.7],
+    "iou_threshold": 0.5,
+    "max_failure_examples": 12
   },
   "inference": {
     "input_image": "data/inputs/kitchen.jpg",
     "output_image": "artifacts/infer/infer_result.jpg",
+    "checkpoint": "artifacts/models/detector/detector.pt",
+    "predictions_json": "artifacts/infer/predictions.json",
     "threshold": 0.6,
     "window_sizes": [64, 96, 128, 160, 224],
     "stride_ratio": 0.25

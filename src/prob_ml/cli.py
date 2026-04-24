@@ -9,10 +9,13 @@ import sys
 from prob_ml.config import load_config
 from prob_ml.dataset import run_convert
 from prob_ml.dcc import build_sbatch_command, validate_job_scripts
+from prob_ml.evaluate import run_evaluate
 from prob_ml.infer import run_infer
 from prob_ml.pipeline import ensure_runtime_directories, render_plan
 from prob_ml.render import run_render, run_render_batch
+from prob_ml.sanity import run_sanity_check
 from prob_ml.train import run_train
+from prob_ml.yolo import run_train_yolo
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,7 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
         "render",
         "render-batch",
         "convert",
+        "sanity-check",
         "train",
+        "evaluate",
+        "train-yolo",
         "infer",
         "pipeline",
     ]:
@@ -50,7 +56,15 @@ def build_parser() -> argparse.ArgumentParser:
     dcc_parser.add_argument(
         "--job",
         default="pipeline",
-        choices=["pipeline", "render", "render-batch", "train"],
+        choices=[
+            "pipeline",
+            "render",
+            "render-batch",
+            "sanity-check",
+            "train",
+            "evaluate",
+            "train-yolo",
+        ],
         help="Which Slurm job script to target.",
     )
     return parser
@@ -98,8 +112,20 @@ def main(argv: list[str] | None = None) -> int:
         run_convert(config)
         return 0
 
+    if args.command == "sanity-check":
+        run_sanity_check(config)
+        return 0
+
     if args.command == "train":
         run_train(config)
+        return 0
+
+    if args.command == "evaluate":
+        run_evaluate(config)
+        return 0
+
+    if args.command == "train-yolo":
+        run_train_yolo(config)
         return 0
 
     if args.command == "infer":
@@ -114,8 +140,12 @@ def main(argv: list[str] | None = None) -> int:
         run_render_batch(config)
         print("\n== convert ==")
         run_convert(config)
+        print("\n== sanity-check ==")
+        run_sanity_check(config)
         print("\n== train ==")
         run_train(config)
+        print("\n== evaluate ==")
+        run_evaluate(config)
         print("\n== infer ==")
         run_infer(config)
         return 0

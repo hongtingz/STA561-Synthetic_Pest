@@ -41,8 +41,13 @@ three pest families; can mux MP4 the same way if `ffmpeg` is available. Rebuild 
 frames only: `uv run python demo/frames_to_video.py` (expects `artifacts/render/frames/`
 and 5-digit `frame_%05d.png` names from the main renderer).
 
-Model training and inference are still intentionally scaffolded placeholders. The
-current repo provides:
+Model training and inference now include a lightweight torchvision Faster R-CNN
+baseline with lightweight augmentation, optional pretrained weights, and
+threshold-sweep TDR/FPR reporting. The converter also writes YOLO labels, and
+`pest-pipeline train-yolo` provides an optional Ultralytics path for an
+additional detector baseline. Dataset sanity checking and checkpoint evaluation
+now produce report artifacts and visual galleries for final write-up evidence.
+Final experiments and result selection are still in progress. The current repo provides:
 
 - stable module boundaries
 - consistent config loading
@@ -136,14 +141,28 @@ positive `test` split must come from held-out rendered or composited data.
 - `pest-pipeline convert --config ...`
   Validates rendered annotations and exports COCO + YOLO datasets together with
   a negative-only real-kitchen holdout manifest.
+- `pest-pipeline sanity-check --config ...`
+  Validates COCO split integrity, bbox bounds, class counts, split leakage, and
+  writes annotation overlay images under `artifacts/reports/`.
 - `pest-pipeline train --config ...`
-  Reserved for model training.
+  Trains the built-in Faster R-CNN detector baseline on exported COCO data and
+  writes a checkpoint plus `training_report.json`, including threshold-sweep
+  summaries for TDR/FPR selection.
+- `pest-pipeline evaluate --config ...`
+  Loads a trained detector checkpoint and writes a unified validation/negative
+  holdout report plus false-positive/false-negative example visualizations.
+- `pest-pipeline train-yolo --config ...`
+  Optionally trains a YOLO detector from `artifacts/dataset/yolo/data.yaml`.
+  This requires installing `ultralytics`; the built-in Faster R-CNN path does
+  not require it.
 - `pest-pipeline infer --config ...`
-  Reserved for inference and evaluation.
+  Loads a detector checkpoint, runs single-image inference, and writes a
+  visualization plus JSON predictions.
 - `pest-pipeline pipeline --config ...`
   Reserved for the full end-to-end local pipeline.
 - `pest-pipeline dcc-submit --config ... --job pipeline`
-  Prints the `sbatch` command for DCC execution.
+  Prints the `sbatch` command for DCC execution. Use `--job train-yolo` for
+  the optional YOLO baseline.
 
 ## DCC Direction
 
@@ -157,7 +176,7 @@ The cluster-facing workflow is designed around:
 ## Next Build Steps
 
 1. Scale batch rendering and confirm output quality across more kitchen backgrounds
-2. Wire detector training to the exported COCO / YOLO dataset contract
-3. Implement inference and evaluation reports for TDR / FPR
-4. Add instructor-style holdout evaluation and finalize split usage
-5. Tighten end-to-end docs and DCC batch-job guidance
+2. Run `sanity-check` before training and fix any dataset/report errors
+3. Run smoke training on DCC and confirm checkpoint/report artifacts
+4. Run `evaluate` plus the optional YOLO baseline if dependencies are available
+5. Tighten end-to-end docs and final metric tables
