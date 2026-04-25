@@ -1,7 +1,8 @@
-# Teamwork Plan
+# Contributions
 
-This document defines the split between the synthetic-data pipeline, dataset
-packaging, and detector-training work.
+This document records the team contribution split across the synthetic-data
+pipeline, dataset packaging, detector training, evaluation, and DCC
+deployment work.
 
 ## Current Project State
 
@@ -9,10 +10,9 @@ The project currently has:
 
 - A `uv`-managed Python package under `src/prob_ml/`
 - Config-driven local and DCC execution
-- Single-image render smoke tests
 - Manifest-driven batch render preparation
-- A successful local batch render smoke output with frames and annotations
-- DCC smoke configs and Slurm job scripts
+- Successful local and DCC batch render outputs with frames and annotations
+- DCC configs and Slurm job scripts for formal runs
 
 The project still needs:
 
@@ -21,9 +21,10 @@ The project still needs:
 - Evaluation for true detection rate and false positive rate
 - Final interface cleanup between dataset export, detector training, and reporting
 
-## Owner 1 (Hongting): Synthetic Data And DCC Pipeline
+## Hongting Zhang: Synthetic Data And DCC Pipeline
 
-Hongting is responsible for the data-generation and cluster-execution side.
+Hongting is responsible for the synthetic-data pipeline, DCC execution, and
+cluster-side testing/debugging.
 
 Primary files:
 
@@ -33,12 +34,13 @@ Primary files:
 - `src/prob_ml/blender/render_scene.py`
 - `configs/*.json`
 - `jobs/*.sbatch`
-- `DCC_USAGE.md`
+- `DCC_DEPLOYMENT.md`
 
 Responsibilities:
 
-- Run and validate DCC render smoke tests.
-- Scale `render-batch` from smoke tests to larger batches.
+- Run and validate DCC render jobs.
+- Test end-to-end pipeline stages on DCC and debug cluster-side failures.
+- Scale `render-batch` to larger batches and maintain the formal DCC config.
 - Keep Blender rendering, layout specs, and annotations stable.
 - Keep DCC job scripts and config files documented and reproducible.
 - Track render throughput, failure cases, and output quality.
@@ -58,6 +60,8 @@ artifacts/batch_render*/
 Submission-facing deliverables:
 
 - Contribute the synthetic-data and DCC sections of the technical appendix.
+- Document DCC testing, job submission, and cluster-side debugging decisions
+  clearly enough for instructor reproduction.
 - Document the end-to-end render workflow so the instructor can reproduce:
   kitchen photo -> layout spec -> rendered frames -> annotations.
 - Provide figures or screenshots for the executive summary and FAQ showing
@@ -65,9 +69,9 @@ Submission-facing deliverables:
 - If a notebook demo is included, own the render/demo portion that shows one
   image being converted into labeled synthetic frames.
 
-## Owner 2: Dataset Packaging And Evaluation Interface
+## Russo Zhang: Dataset Packaging And Evaluation Interface
 
-This owner is responsible for turning generated render outputs into clean model
+Russo is responsible for turning generated render outputs into clean model
 inputs and evaluation-ready ground truth.
 
 Primary files:
@@ -87,8 +91,9 @@ Responsibilities:
 - Validate that every annotation points to an existing frame image.
 - Validate category IDs and bounding-box format.
 - Export a YOLO-format dataset in addition to COCO for fast detector baselines.
-- Prepare ground-truth files needed by the detector owner.
-- Coordinate with Owner 3 on any model-specific dataset loader needs.
+- Prepare ground-truth files needed by the detector-training contributor.
+- Coordinate with the detector-training contributor on any model-specific
+  dataset loader needs.
 
 Expected outputs:
 
@@ -116,18 +121,19 @@ Submission-facing deliverables:
 - If a notebook demo is included, own the dataset-inspection portion that shows
   rendered annotations becoming training-ready files.
 
-Current Owner 2 implementation status:
+Current Russo implementation status:
 
 - `src/prob_ml/dataset.py` now converts rendered frame annotations into COCO.
 - The same conversion step also writes YOLO labels and `data.yaml`.
 - File paths are written relative to the repository root where possible.
 - Bounding boxes are validated against frame image size before export.
-- The conversion step requires rendered `train` and `val` splits to exist.
+- If the manifest only contains rendered `unassigned` samples, the conversion
+  step auto-assigns them into `train` and `val` for baseline training.
 - `neg_test` is treated as a real-image negative-only holdout, not a positive detection split.
 
-## Owner 3: Detector Training, Inference, And Evaluation
+## Shuai Huang: Detector Training, Inference, And Evaluation
 
-This owner is responsible for the model side.
+This contributor is responsible for the model side.
 
 Primary files:
 
@@ -146,19 +152,23 @@ Responsibilities:
 - Generate predicted bounding boxes, class labels, and confidence scores.
 - Implement evaluation reports for detection quality.
 - Track true detection rate and false positive rate.
-- Coordinate with Owner 2 on COCO format and split names.
+- Coordinate with Russo on COCO format and split names.
 
 Expected outputs:
 
 ```text
 artifacts/models/
   detector/
-    checkpoints/
-    final_model/
+    detector.pt
+    training_report.json
 
-artifacts/eval/
-  eval_report.json
+artifacts/reports/evaluation/
+  detector_evaluation_report.json
+  failure_examples/
+
+artifacts/infer/
   predictions.json
+  infer_result.jpg
 ```
 
 Submission-facing deliverables:
@@ -174,8 +184,8 @@ Submission-facing deliverables:
 
 ## Shared Dataset Contract
 
-The handoff from Owner 1 to Owner 2 is batch-render output. The handoff from
-Owner 2 to Owner 3 should be COCO-style detection data.
+The handoff from Hongting to Russo is batch-render output. The handoff from
+Russo to Shuai Huang should be COCO-style detection data.
 
 Required categories:
 
@@ -191,7 +201,7 @@ Category mapping contract:
 
 - COCO uses `category_id` values `1=mouse`, `2=rat`, `3=cockroach`.
 - YOLO uses zero-based class ids `0=mouse`, `1=rat`, `2=cockroach`.
-- Do not change category order without notifying all owners.
+- Do not change category order without notifying all contributors.
 
 Expected COCO structure:
 
@@ -228,8 +238,8 @@ Notes:
 - Bounding boxes use COCO format: `[x, y, width, height]`.
 - Coordinates are pixel coordinates.
 - `file_name` should point to the rendered frame image using a path relative to repo root.
-- Owner 3 should not need to know how Blender generated the frame.
-- Owner 1 should not need to know model internals.
+- Shuai Huang should not need to know how Blender generated the frame.
+- Hongting should not need to know model internals.
 - `neg_test` contains real kitchen images with no pests and should be used for false-positive evaluation.
 - Because the team does not currently have real positive pest images, any positive `test` split must come from rendered or composited data.
 
@@ -252,25 +262,25 @@ artifacts/dataset/yolo/
 
 ## Recommended Parallel Workflow
 
-1. Owner 1 runs DCC smoke render:
+1. Hongting runs formal DCC batch rendering:
 
 ```bash
-uv run pest-pipeline dcc-submit --config configs/dcc_gpu_smoke.json --job render-batch
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render-batch
 ```
 
-2. Owner 2 implements and tests dataset conversion:
+2. Russo implements and tests dataset conversion:
 
 ```bash
-uv run pest-pipeline convert --config configs/base.json
+uv run pest-pipeline convert --config configs/dcc_gpu.json
 ```
 
-3. Owner 3 starts with a tiny local dataset from:
+3. Shuai Huang starts with a tiny local dataset from:
 
 ```text
-artifacts/batch_render_smoke/kitchen_0001/
+artifacts/batch_render*/kitchen_0001/
 ```
 
-4. Owner 3 later switches to:
+4. Shuai Huang later switches to:
 
 ```text
 artifacts/dataset/coco_train.json
@@ -278,28 +288,28 @@ artifacts/dataset/coco_val.json
 artifacts/dataset/yolo/data.yaml
 ```
 
-5. Owner 2 checks dataset quality:
+5. Russo checks dataset quality:
 
 ```bash
-uv run pest-pipeline sanity-check --config configs/base.json
+uv run pest-pipeline sanity-check --config configs/dcc_gpu.json
 ```
 
-6. Owner 3 trains:
+6. Shuai Huang trains:
 
 ```bash
-uv run pest-pipeline train --config configs/base.json
+uv run pest-pipeline train --config configs/dcc_gpu.json
 ```
 
-7. Owner 3 evaluates:
+7. Shuai Huang evaluates:
 
 ```bash
-uv run pest-pipeline evaluate --config configs/base.json
+uv run pest-pipeline evaluate --config configs/dcc_gpu.json
 ```
 
-8. Owner 3 runs example inference:
+8. Shuai Huang runs example inference:
 
 ```bash
-uv run pest-pipeline infer --config configs/base.json
+uv run pest-pipeline infer --config configs/dcc_gpu.json
 ```
 
 Optional YOLO comparison:
@@ -358,13 +368,14 @@ Recommended evaluation split interpretation:
 
 ## Coordination Rules
 
-- Owner 1 owns render, layout, manifest, Blender, DCC, and render configs.
-- Owner 2 owns dataset conversion, dataset validation, and split files.
-- Owner 3 owns training, inference, model, and evaluation files.
+- Hongting owns render, layout, manifest, Blender, DCC, and render configs.
+- Russo owns dataset conversion, dataset validation, and split files.
+- Shuai Huang owns training, inference, model, and evaluation files.
 - Shared config changes should be discussed before committing.
-- Do not change the COCO dataset schema without notifying all owners.
-- Do not change split names (`train`, `val`, `neg_test`, optional `test`) without notifying all owners.
-- If Owner 3 trains with YOLO, the canonical class order must still match the COCO export.
+- Do not change the COCO dataset schema without notifying all contributors.
+- Do not change split names (`train`, `val`, `neg_test`, optional `test`) without
+  notifying all contributors.
+- If Shuai Huang trains with YOLO, the canonical class order must still match the COCO export.
 - If a future positive `test` split is added, update both COCO and YOLO exports together.
 - Keep generated artifacts out of git.
 - Commit code and config changes, not rendered frames or model checkpoints.

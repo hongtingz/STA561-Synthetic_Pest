@@ -6,7 +6,7 @@ organized around the A+ target:
 1. Take a kitchen photo as input
 2. Generate labeled synthetic pest video in Blender
 3. Export frame-level annotations
-4. Train a ViT-based model
+4. Train a detector baseline
 5. Run the pipeline reproducibly on the Duke compute cluster
 
 ## Design Goals
@@ -19,9 +19,10 @@ organized around the A+ target:
 
 ## Current State
 
-This branch is a clean rebuild scaffold. The package structure, CLI, DCC helpers,
-and configuration flow are in place so the repo can grow into the full A+ system
-without another reorganization pass.
+The repository now supports an end-to-end workflow rather than a pure scaffold.
+The package structure, CLI, DCC helpers, and configuration flow support
+rendering, dataset conversion, sanity checking, detector training, evaluation,
+and inference in one reproducible workflow.
 
 The render and dataset-packaging path now supports:
 
@@ -54,22 +55,49 @@ Final experiments and result selection are still in progress. The current repo p
 - directory conventions
 - DCC job wiring
 
+## Planned ViT Path
+
+To align more closely with the course A+ target, the next model-stage upgrade
+is planned as a transformer-based detector pipeline rather than stopping at the
+current Faster R-CNN baseline.
+
+The intended progression is:
+
+```text
+kitchen photo
+-> Blender render-batch
+-> frame annotations
+-> COCO export
+-> sanity-check
+-> Faster R-CNN baseline training
+-> ViT/transformer detector training
+-> threshold selection
+-> evaluation on validation + neg_test
+```
+
+Faster R-CNN is the current engineering baseline used to verify that the data,
+training, and DCC workflow run end to end. The planned next stage is to plug a
+ViT-backed detector into the same dataset and evaluation contract so that model
+upgrades do not require changing the rendering or cluster orchestration layers.
+
 ## Quick Start
 
 ```bash
 uv sync
-uv run pest-pipeline doctor
-uv run pest-pipeline plan --config configs/base.json
-uv run pest-pipeline convert --config configs/base.json
-uv run pest-pipeline dcc-submit --config configs/base.json --job pipeline
+uv run pest-pipeline doctor --config configs/dcc_gpu.json
+uv run pest-pipeline plan --config configs/dcc_gpu.json
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render-batch
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job train
 ```
 
-`configs/base.json` is kept conservative for local smoke tests and uses CPU
-rendering. `configs/dcc_gpu.json` is the DCC-oriented variant that switches
-Blender to GPU rendering with the `CUDA` backend.
+`configs/dcc_gpu.json` is the main instructor-facing and DCC-oriented
+configuration. It switches Blender to GPU rendering with the `CUDA` backend and
+uses the production cluster resource profile. `configs/base.json` remains
+available for local CPU development, and `configs/dcc_gpu_smoke.json` is kept
+only for short validation runs.
 
-For cluster usage notes and submission examples, see
-[DCC_USAGE.md](/Users/hongting/projects/prob_ml/DCC_USAGE.md).
+For the instructor-facing reproduction and deployment description, see
+[DCC_DEPLOYMENT.md](/Users/hongting/projects/prob_ml/DCC_DEPLOYMENT.md).
 
 For the original course project description in Markdown form, see
 [PROJECT_SPEC.md](/Users/hongting/projects/prob_ml/PROJECT_SPEC.md).
@@ -82,13 +110,13 @@ configs/          Runtime configuration files
 jobs/             DCC / Slurm job scripts
 scripts/          Small operational shell helpers
 src/prob_ml/      Python package
-tests/            Lightweight tests for the scaffold
+tests/            Lightweight tests for the project modules
 ```
 
 ## Data Conventions
 
 - `data/inputs/`
-  Single-image local experiments and smoke tests.
+  Single-image local experiments and quick checks.
 - `data/raw/kitchen/images/`
   External real kitchen photo corpus in its original form, used to drive large-batch synthetic generation.
 - `data/raw/kitchen/metadata/manifest.csv`
@@ -177,6 +205,6 @@ The cluster-facing workflow is designed around:
 
 1. Scale batch rendering and confirm output quality across more kitchen backgrounds
 2. Run `sanity-check` before training and fix any dataset/report errors
-3. Run smoke training on DCC and confirm checkpoint/report artifacts
+3. Run full DCC detector training and confirm checkpoint/report artifacts
 4. Run `evaluate` plus the optional YOLO baseline if dependencies are available
 5. Tighten end-to-end docs and final metric tables

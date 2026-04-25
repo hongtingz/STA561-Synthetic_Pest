@@ -78,9 +78,12 @@ are implemented and tested. The repository can:
 - Package those annotations into COCO and YOLO datasets
 - Preserve real kitchen images with no pests as a separate negative-only split
 
-Training and inference now have a lightweight detector baseline entrypoint.
-Final quantitative results, including true detection rate and false positive
-rate, should be added once detector experiments are run and selected.
+Training and inference now use a lightweight Faster R-CNN baseline entrypoint.
+This baseline is being used to validate the dataset contract, training loop,
+and DCC execution path before moving to a transformer-based detector that more
+closely matches the course A+ target. Final quantitative results, including
+true detection rate and false positive rate, should be added once detector
+experiments are run and selected.
 
 ### Preliminary Interpretation
 
@@ -101,6 +104,8 @@ while final generalization claims should be framed carefully.
 If we had more time, the most important next steps would be:
 
 - Train and compare one or more full object detectors on the packaged dataset
+- Add a ViT- or DETR-style detector path on top of the same COCO export and
+  compare it against the Faster R-CNN baseline
 - Quantify false positives on real kitchen negatives more systematically
 - Improve pest asset realism and scene diversity
 - Expand the evaluation protocol with stronger held-out test settings
@@ -233,10 +238,20 @@ The current repository is organized as a pipeline with separate modules for:
 - annotation packaging
 - cluster job submission
 - training and inference entrypoints
+- room for a second detector path that reuses the same exported dataset and
+  evaluation contract
 
 The main intended data flow is:
 
 `kitchen photo -> layout spec -> rendered frames -> annotations -> COCO/YOLO dataset -> detector training -> evaluation`
+
+The current implemented detector path is:
+
+`kitchen photo -> layout spec -> rendered frames -> annotations -> COCO export -> Faster R-CNN baseline -> evaluation`
+
+The planned A+-oriented extension is:
+
+`kitchen photo -> layout spec -> rendered frames -> annotations -> COCO export -> sanity-check -> ViT/transformer detector training -> threshold selection -> evaluation on validation and neg_test`
 
 ### 3. Repository Structure
 
@@ -264,11 +279,11 @@ Representative commands:
 
 ```bash
 uv sync
-uv run pest-pipeline doctor
-uv run pest-pipeline plan --config configs/base.json
-uv run pest-pipeline render-batch --config configs/local_render_batch_smoke.json
-uv run pest-pipeline convert --config configs/base.json
-uv run pest-pipeline dcc-submit --config configs/dcc_gpu_smoke.json --job render-batch
+uv run pest-pipeline doctor --config configs/dcc_gpu.json
+uv run pest-pipeline plan --config configs/dcc_gpu.json
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render-batch
+uv run pest-pipeline convert --config configs/dcc_gpu.json
+uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job train
 ```
 
 The JSON config files specify render settings, dataset paths, training paths,
@@ -377,6 +392,8 @@ At the time of this draft:
   failure-case visualizations
 - an optional YOLO training entrypoint is implemented
 - single-image detector inference is implemented
+- a transformer-detector upgrade path is planned on top of the same COCO export
+  and DCC workflow
 - final trained checkpoints and metric tables are still pending
 
 This means the project already contains a substantial amount of the data and
@@ -417,7 +434,7 @@ To reproduce the current pipeline, a reader should have:
 
 The technical workflow is intended to be reproducible from config files and
 documented command-line entrypoints. The cluster execution path is documented in
-`DCC_USAGE.md`.
+`DCC_DEPLOYMENT.md`.
 
 ### 14. Limitations
 

@@ -124,6 +124,51 @@ def _positive_splits(records_by_split: dict[str, list[KitchenPhotoRecord]]) -> l
     return ordered
 
 
+def _has_render_outputs(config: PipelineConfig, record: KitchenPhotoRecord) -> bool:
+    resolved_paths = resolve_batch_render_paths(config, record)
+    return resolved_paths["annotations"].exists()
+
+
+def _training_val_split(config: PipelineConfig) -> float:
+    raw = getattr(config, "raw", {})
+    training = raw.get("training", {}) if isinstance(raw, dict) else {}
+    return float(training.get("val_split", 0.2))
+
+
+def _auto_assign_splits(
+    config: PipelineConfig,
+    records_by_split: dict[str, list[KitchenPhotoRecord]],
+) -> dict[str, list[KitchenPhotoRecord]]:
+    """Derive train/val/neg_test when the manifest only contains unassigned rows."""
+    if "train" in records_by_split and "val" in records_by_split:
+        return records_by_split
+
+    unassigned = list(records_by_split.get("unassigned", []))
+    if not unassigned:
+        return records_by_split
+
+    rendered_records = [record for record in unassigned if _has_render_outputs(config, record)]
+    if len(rendered_records) < 2:
+        return records_by_split
+
+    val_fraction = _training_val_split(config)
+    val_count = max(1, round(len(rendered_records) * val_fraction))
+    val_count = min(val_count, len(rendered_records) - 1)
+    train_records = rendered_records[:-val_count]
+    val_records = rendered_records[-val_count:]
+    rendered_ids = {record.image_id for record in rendered_records}
+    neg_records = list(records_by_split.get("neg_test", []))
+    if not neg_records:
+        neg_records = [record for record in unassigned if record.image_id not in rendered_ids]
+
+    derived = dict(records_by_split)
+    derived["train"] = train_records
+    derived["val"] = val_records
+    if neg_records:
+        derived["neg_test"] = neg_records
+    return derived
+
+
 def _build_positive_split(
     config: PipelineConfig,
     split: str,
@@ -148,6 +193,8 @@ def _build_positive_split(
 
         for frame in _load_annotations(annotations_path):
             frame_path = Path(str(frame["file"])).resolve()
+            if not frame_path.exists():
+                frame_path = resolved_paths["frames_dir"] / Path(str(frame["file"])).name
             if not frame_path.exists():
                 raise FileNotFoundError(
                     f"Annotated frame does not exist for {record.image_id}: {frame_path}"
@@ -394,7 +441,7 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
     manifest_path = _resolve_path(config, inputs["kitchen_manifest"])
     output_root = _resolve_path(config, dataset["coco_annotations"]).parent
     records = load_kitchen_photo_manifest(manifest_path, config.repo_root, enabled_only=False)
-    records_by_split = _group_records_by_split(records)
+    records_by_split = _auto_assign_splits(config, _group_records_by_split(records))
 
     next_image_id = 1
     next_annotation_id = 1

@@ -232,3 +232,125 @@ def test_convert_batch_render_outputs_rejects_invalid_bbox(tmp_path: Path) -> No
         assert "Bbox exceeds image bounds" in str(exc)
     else:
         raise AssertionError("Expected invalid bbox conversion to fail")
+
+
+def test_convert_batch_render_outputs_auto_assigns_train_val_from_rendered_unassigned(
+    tmp_path: Path,
+) -> None:
+    kitchen_dir = tmp_path / "data" / "raw" / "kitchen" / "images"
+    _write_image(kitchen_dir / "bg_1.jpg", size=(200, 100))
+    _write_image(kitchen_dir / "bg_2.jpg", size=(220, 120))
+    _write_image(kitchen_dir / "bg_3.jpg", size=(180, 90))
+
+    manifest_path = tmp_path / "data" / "raw" / "kitchen" / "metadata" / "manifest.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "\n".join(
+            [
+                "image_id,filename,relative_path,split,enabled",
+                "kitchen_0001,bg_1.jpg,data/raw/kitchen/images/bg_1.jpg,unassigned,true",
+                "kitchen_0002,bg_2.jpg,data/raw/kitchen/images/bg_2.jpg,unassigned,true",
+                "kitchen_0003,bg_3.jpg,data/raw/kitchen/images/bg_3.jpg,unassigned,true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    render_root = tmp_path / "artifacts" / "batch_render"
+    frame_1 = render_root / "kitchen_0001" / "frames" / "frame_00001.png"
+    frame_2 = render_root / "kitchen_0002" / "frames" / "frame_00001.png"
+    _write_image(frame_1, size=(64, 32))
+    _write_image(frame_2, size=(80, 40))
+    (render_root / "kitchen_0001").mkdir(parents=True, exist_ok=True)
+    (render_root / "kitchen_0002").mkdir(parents=True, exist_ok=True)
+    (render_root / "kitchen_0001" / "annotations.json").write_text(
+        json.dumps(
+            [
+                {
+                    "frame": 1,
+                    "file": str(frame_1.resolve()),
+                    "pests": [],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (render_root / "kitchen_0002" / "annotations.json").write_text(
+        json.dumps(
+            [
+                {
+                    "frame": 1,
+                    "file": str(frame_2.resolve()),
+                    "pests": [],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    outputs = convert_batch_render_outputs(_build_config(tmp_path))
+
+    coco_train = json.loads(outputs["coco_train"].read_text(encoding="utf-8"))
+    coco_val = json.loads(outputs["coco_val"].read_text(encoding="utf-8"))
+    coco_neg = json.loads(outputs["coco_neg_test"].read_text(encoding="utf-8"))
+    summary = json.loads(outputs["summary"].read_text(encoding="utf-8"))
+
+    assert len(coco_train["images"]) == 1
+    assert len(coco_val["images"]) == 1
+    assert len(coco_neg["images"]) == 1
+    assert summary["splits"]["train"]["backgrounds_with_renders"] == 1
+    assert summary["splits"]["val"]["backgrounds_with_renders"] == 1
+    assert summary["splits"]["neg_test"]["backgrounds"] == 1
+
+
+def test_convert_batch_render_outputs_recovers_from_stale_absolute_frame_path(
+    tmp_path: Path,
+) -> None:
+    kitchen_dir = tmp_path / "data" / "raw" / "kitchen" / "images"
+    _write_image(kitchen_dir / "train_bg.jpg", size=(200, 100))
+    _write_image(kitchen_dir / "val_bg.jpg", size=(220, 120))
+
+    manifest_path = tmp_path / "data" / "raw" / "kitchen" / "metadata" / "manifest.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "\n".join(
+            [
+                "image_id,filename,relative_path,split,enabled",
+                "kitchen_0001,train_bg.jpg,data/raw/kitchen/images/train_bg.jpg,train,true",
+                "kitchen_0002,val_bg.jpg,data/raw/kitchen/images/val_bg.jpg,val,true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    render_root = tmp_path / "artifacts" / "batch_render"
+    train_frame = render_root / "kitchen_0001" / "frames" / "frame_00001.png"
+    val_frame = render_root / "kitchen_0002" / "frames" / "frame_00001.png"
+    _write_image(train_frame, size=(64, 32))
+    _write_image(val_frame, size=(80, 40))
+    (render_root / "kitchen_0001").mkdir(parents=True, exist_ok=True)
+    (render_root / "kitchen_0002").mkdir(parents=True, exist_ok=True)
+
+    stale_train_path = (
+        "/hpc/home/hz365/prob_ml/artifacts/batch_render/"
+        "kitchen_0001/frames/frame_00001.png"
+    )
+    stale_val_path = (
+        "/hpc/home/hz365/prob_ml/artifacts/batch_render/"
+        "kitchen_0002/frames/frame_00001.png"
+    )
+    (render_root / "kitchen_0001" / "annotations.json").write_text(
+        json.dumps([{"frame": 1, "file": stale_train_path, "pests": []}]),
+        encoding="utf-8",
+    )
+    (render_root / "kitchen_0002" / "annotations.json").write_text(
+        json.dumps([{"frame": 1, "file": stale_val_path, "pests": []}]),
+        encoding="utf-8",
+    )
+
+    outputs = convert_batch_render_outputs(_build_config(tmp_path))
+    coco_train = json.loads(outputs["coco_train"].read_text(encoding="utf-8"))
+    coco_val = json.loads(outputs["coco_val"].read_text(encoding="utf-8"))
+
+    assert len(coco_train["images"]) == 1
+    assert len(coco_val["images"]) == 1
