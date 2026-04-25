@@ -66,8 +66,9 @@ Submission-facing deliverables:
   kitchen photo -> layout spec -> rendered frames -> annotations.
 - Provide figures or screenshots for the executive summary and FAQ showing
   representative generated kitchens, pests, and labeled outputs.
-- If a notebook demo is included, own the render/demo portion that shows one
-  image being converted into labeled synthetic frames.
+- Own the render/demo portion of
+  `notebooks/dcc_pipeline_demo.ipynb` that shows one image being converted into
+  labeled synthetic frames.
 
 ## Russo Zhang: Dataset Packaging And Evaluation Interface
 
@@ -118,8 +119,9 @@ Submission-facing deliverables:
   holdout design clearly enough for full reproduction.
 - Provide tables or summaries for the executive summary / FAQ describing dataset
   size, split counts, and category mapping.
-- If a notebook demo is included, own the dataset-inspection portion that shows
-  rendered annotations becoming training-ready files.
+- Own the dataset-inspection portion of
+  `notebooks/dcc_pipeline_demo.ipynb` that shows rendered annotations becoming
+  training-ready files.
 
 Current Russo implementation status:
 
@@ -179,8 +181,10 @@ Submission-facing deliverables:
   true detection rate, false positive rate, and key example predictions.
 - Draft the FAQ answers about why the model was chosen, how it was evaluated,
   what failed, and what future improvements are most promising.
-- If a notebook demo is included, own the training/evaluation demo showing how
-  predictions are generated from the packaged dataset or held-out frames.
+- Own the training/evaluation portion of
+  `notebooks/dcc_pipeline_demo.ipynb` showing how evaluation artifacts and
+  prediction examples are generated from the packaged dataset or held-out
+  frames.
 
 ## Shared Dataset Contract
 

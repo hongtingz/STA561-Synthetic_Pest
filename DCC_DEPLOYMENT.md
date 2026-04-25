@@ -185,6 +185,15 @@ Inference can be run after training on a selected image:
 uv run pest-pipeline infer --config configs/dcc_gpu.json
 ```
 
+After `render-batch`, `convert`, `sanity-check`, `train`, and `evaluate` have
+finished, the generated artifacts can also be reviewed through the notebook:
+
+- [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb)
+
+This notebook is intentionally read-only with respect to expensive pipeline
+stages. It reads existing outputs from `artifacts/` and is suitable for an
+instructor-facing demonstration on DCC or code-server.
+
 Optional short validation run:
 
 ```bash
@@ -249,6 +258,10 @@ Inference outputs:
 
 - `artifacts/infer/predictions.json`
 - `artifacts/infer/infer_result.jpg`
+
+Notebook demo:
+
+- `notebooks/dcc_pipeline_demo.ipynb`
 
 ## 9. Reproducibility Notes
 

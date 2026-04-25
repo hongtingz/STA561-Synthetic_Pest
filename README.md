@@ -102,6 +102,9 @@ For the instructor-facing reproduction and deployment description, see
 For the original course project description in Markdown form, see
 [PROJECT_SPEC.md](/Users/hongting/projects/prob_ml/PROJECT_SPEC.md).
 
+For a lightweight instructor-facing notebook that reads existing DCC artifacts,
+see [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb).
+
 ## Repository Layout
 
 ```text
@@ -200,6 +203,21 @@ The cluster-facing workflow is designed around:
 - reproducible output directories under `artifacts/`
 - Slurm entrypoints under `jobs/`
 - a single Python package that can be called locally and on DCC
+
+## Notebook Demo
+
+The repository includes a lightweight DCC-oriented notebook demo:
+
+- [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb)
+
+It is intended to be opened after `render-batch`, `convert`, `sanity-check`,
+`train`, and `evaluate` have already produced artifacts. The notebook does not
+launch expensive jobs; it reads existing outputs and displays:
+
+- one input kitchen image
+- one rendered frame with stored pest bounding boxes
+- dataset summary artifacts
+- evaluation metrics and example failure cases
 
 ## Next Build Steps
 
