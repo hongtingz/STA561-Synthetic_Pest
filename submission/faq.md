@@ -106,3 +106,28 @@ The most impactful improvements would be stronger detector training, better
 pest assets, more diverse backgrounds and camera conditions, more realistic
 evaluation on real positive examples, and a transformer-based detector that can
 be compared directly against the existing baseline.
+
+## 16. Why MobileNet-backed Faster R-CNN instead of a heavier backbone?
+
+The built-in training path optimizes for a **small, fast baseline** that is easy
+to run on limited GPUs and cluster time while still exercising the full data
+pipeline. torchvision exposes this variant with a clear API, and the project
+replaces only the classification head for the three pest classes plus
+background. A heavier backbone can be explored later, but the current choice is
+intentionally lightweight for engineering validation.
+
+## 17. Why does `pyproject.toml` list `transformers` if the main trainer uses torchvision?
+
+The dependency anticipates the **planned** transformer-style detector stage
+mentioned in the course A+ direction. The **current** `pest-pipeline train`
+implementation uses **torchvision** Faster R-CNN only. Until a separate
+Hugging Face (or other) training entrypoint is merged, `transformers` may be
+unused in the default workflow.
+
+## 18. Why is YOLO training optional instead of required?
+
+The Ultralytics stack is useful for a second baseline, but it is **not**
+declared in the core `pyproject.toml` dependencies to keep the default
+environment minimal and avoid extra download weight for teammates who only need
+the torchvision path. The CLI command `pest-pipeline train-yolo` checks for
+`ultralytics` at runtime and prints install instructions if it is missing.

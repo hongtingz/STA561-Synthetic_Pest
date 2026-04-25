@@ -58,6 +58,131 @@ Important directories include:
 - `notebooks/`
   DCC-oriented notebook demos for instructor-facing review
 
+## 3a. Core modules (implementation map)
+
+The CLI entrypoint is `pest-pipeline`, defined in `pyproject.toml` as
+`prob_ml.cli:main`. The following modules are the main implementation anchors:
+
+| Module | Responsibility |
+| --- | --- |
+| `prob_ml/cli.py` | Subcommands: `plan`, `render`, `render-batch`, `convert`, `sanity-check`, `train`, `evaluate`, `train-yolo`, `infer`, `pipeline`, `doctor`, `dcc-submit`. |
+| `prob_ml/config.py` | Loads JSON into `PipelineConfig` and resolves paths relative to the repo root. |
+| `prob_ml/manifest.py` | Parses the kitchen-photo CSV manifest into `KitchenPhotoRecord` rows. |
+| `prob_ml/layout.py` | Extracts image cues and writes `layout.json` (room, camera, lights, fixtures, pest paths). |
+| `prob_ml/render.py` | Prepares batch renders and invokes Blender with `blender/render_scene.py`. |
+| `prob_ml/blender/render_scene.py` | Blender-side script: scene build, animation, bbox projection, frame export. |
+| `prob_ml/video.py` | Optional H.264 mux of numbered PNG frames via `ffmpeg`. |
+| `prob_ml/dataset.py` | `convert`: merges batch renders + manifest splits into COCO and YOLO exports. |
+| `prob_ml/sanity.py` | Dataset integrity checks and bbox overlay images for review. |
+| `prob_ml/detector.py` | Torchvision Faster R-CNN builder, `CocoDetectionDataset`, IoU matching, TDR/FPR summaries. |
+| `prob_ml/train.py` | Training loop, `training_report.json`, threshold sweep on val and `neg_test`. |
+| `prob_ml/evaluate.py` | Loads checkpoint, writes `detector_evaluation_report.json` and failure-case images. |
+| `prob_ml/infer.py` | Single full-image forward pass, `predictions.json`, visualization. |
+| `prob_ml/yolo.py` | Optional Ultralytics training when `ultralytics` is installed (not a core dependency). |
+| `prob_ml/dcc.py` | Builds `sbatch` commands from config and `jobs/*.sbatch`. |
+| `prob_ml/pipeline.py` | Creates artifact directories and prints a resolved plan summary. |
+
+Automated checks live under `tests/` (for example `test_cli.py`, `test_dataset.py`,
+`test_manifest.py`, `test_detector.py`).
+
+## 3b. Kitchen photo manifest (CSV)
+
+Batch rendering expects a CSV at the path given by `inputs.kitchen_manifest`
+(default `data/raw/kitchen/metadata/manifest.csv`). Each row describes one
+kitchen image. The loader (`prob_ml/manifest.py`) expects:
+
+- **`relative_path`** or **`filename`**: path to the image file (relative to the
+  repo root or absolute). At least one must be set.
+- **`image_id`**: optional stable id; defaults to the file stem if omitted.
+- **`split`**: `train`, `val`, `test`, `neg_test`, `unassigned`, etc. Rows with
+  `unassigned` can be auto-partitioned into `train`/`val` during `convert` when
+  render outputs exist (see `dataset.py`).
+- **`enabled`**: optional; `false`/`0`/`no` skips the row when
+  `render.batch_enabled_only` is true.
+
+Every referenced image file must exist at load time. The repository does not
+ship a full kitchen corpus; reviewers should place images under
+`data/raw/kitchen/images/` (or paths listed in the manifest) per
+`README.md` / `DCC_DEPLOYMENT.md`.
+
+## 3c. Python runtime and dependencies
+
+`pyproject.toml` declares:
+
+- **Python**: `>=3.12`
+- **Runtime packages**: `pillow`, `torch`, `torchvision`, `transformers`
+
+The **built-in detector path** uses **torchvision only** (`build_detection_model`
+in `detector.py`). The code currently supports a **single** architecture name:
+`fasterrcnn_mobilenet_v3_large_320_fpn`. Any other value raises a clear error.
+
+The **`transformers`** package is listed for the **planned** ViT/DETR-style
+upgrade described elsewhere; there is not yet a separate training entrypoint that
+trains a Hugging Face detection model in this repo.
+
+**YOLO**: `pest-pipeline train-yolo` requires **`ultralytics`**, which is
+**not** pinned in `pyproject.toml`. Install with `uv add ultralytics` (or
+equivalent) if that baseline is needed.
+
+## 3d. Default training, evaluation, and YOLO settings (`configs/dcc_gpu.json`)
+
+These values are authoritative for the main DCC profile (edit the JSON to change
+behavior):
+
+**Training (Faster R-CNN)**
+
+- Model: `fasterrcnn_mobilenet_v3_large_320_fpn`
+- Epochs: `5`, batch size: `2`, optimizer: **AdamW**, learning rate: `1e-4`,
+  weight decay: `1e-4`
+- `pretrained`: `false` by default (toggle to load torchvision COCO weights for
+  the backbone+FPN when desired)
+- Augmentation: horizontal flip probability `0.5`; color jitter brightness
+  `0.2`, contrast `0.2`, saturation `0.1`
+- Matching: training `score_threshold` `0.5`, IoU threshold `0.5`
+- Threshold sweep list: `[0.3, 0.5, 0.7]` (reported for both val and `neg_test`
+  in `training_report.json`)
+
+**Evaluation**
+
+- Checkpoint default: `artifacts/models/detector/detector.pt`
+- Report directory: `artifacts/reports/evaluation/`
+- Thresholds: `[0.3, 0.5, 0.7]`, IoU `0.5`, up to `12` failure-example images
+
+**YOLO (optional)**
+
+- `yolov8n.pt`, epochs `20`, `imgsz` `640`, batch `8`, workers `4`
+
+**Batch render (DCC)**
+
+- `batch_limit`: `25`, `batch_enabled_only`: `true`, `scene_seed`: `42`
+- `pest_asset_style`: `hybrid`, `photo_background`: `true`
+
+## 3e. Metrics reported in code
+
+`prob_ml/detector.py` defines project-level summaries used in training and
+evaluation:
+
+- **True detection rate (TDR)**: `matched_boxes / ground_truth_boxes` over the
+  evaluated split, using greedy same-class matching and a configurable IoU
+  threshold.
+- **False positive rate (FPR)** (image-level): `false_positive_images /
+  evaluated_images`. In `match_prediction_to_target`, `false_positive_images` is
+  `1` only when the image has **no** ground-truth boxes but **at least one**
+  prediction clears the score threshold. That makes the metric align with
+  **negative-only** evaluation (`neg_test`). On splits that contain positives,
+  extra unmatched predictions do **not** increment this image-level counter
+  (they still affect TDR via unmatched ground truth).
+
+Per-class detection rates are also aggregated for qualitative diagnosis.
+
+## 3f. Inference behavior
+
+`pest-pipeline infer` runs the detector on **one** RGB image with a **single**
+full-frame forward pass (after `to_tensor` and device placement). The config
+keys `inference.window_sizes` and `inference.stride_ratio` appear in JSON configs
+but are **not** read by the current `infer.py` implementation; they are
+reserved for a possible future multi-scale or tiled inference path.
+
 ## 4. Configuration And Execution
 
 The project uses `uv` for environment and dependency management. This was
@@ -187,13 +312,16 @@ render-batch -> convert -> sanity-check -> train -> evaluate -> infer
 
 Important DCC-facing components:
 
-- `configs/dcc_gpu.json`
-- `jobs/render-batch.sbatch`
-- `jobs/sanity-check.sbatch`
-- `jobs/train.sbatch`
-- `jobs/evaluate.sbatch`
+- `configs/dcc_gpu.json` (primary), `configs/base.json` (local CPU-oriented),
+  `configs/dcc_gpu_smoke.json` (short validation)
+- `jobs/render.sbatch`, `jobs/render-batch.sbatch`, `jobs/pipeline.sbatch`
+- `jobs/sanity-check.sbatch`, `jobs/train.sbatch`, `jobs/evaluate.sbatch`,
+  `jobs/train-yolo.sbatch`
 - `scripts/dcc_submit.sh`
 - `notebooks/dcc_pipeline_demo.ipynb`
+
+`pest-pipeline dcc-submit --job <name>` accepts: `pipeline`, `render`,
+`render-batch`, `sanity-check`, `train`, `evaluate`, `train-yolo`.
 
 The notebook is intentionally read-only with respect to heavy pipeline stages.
 It is designed for instructor-facing artifact review after the jobs have
@@ -215,6 +343,9 @@ At the current stage:
   failure-case visualizations
 - an optional YOLO training entrypoint is implemented
 - single-image detector inference is implemented
+- optional **ffmpeg** mux of rendered frames to MP4 when `render.mux_video` is
+  true (`prob_ml/video.py`; default is **true** if the key is omitted, so `ffmpeg`
+  may be needed unless muxing is disabled in JSON)
 - a transformer-detector upgrade path is planned on top of the same COCO export
   and DCC workflow
 - final trained checkpoints and metric tables are still pending
@@ -223,44 +354,65 @@ This means the repository already contains a substantial amount of the data and
 engineering pipeline, but the final model-selection and metric-reporting stage
 are still in progress.
 
-## 13. Experimental Results Placeholder
+## 13. Experimental results and report artifacts
 
-This section should be updated once detector experiments are complete.
+**Where numbers land after training**
 
-Suggested subsections:
+The codebase already writes structured reports; the **numerical results** below
+should be copied from these files once final DCC or local runs are finished:
 
-- dataset size and split counts
-- detector architecture or architectures used
-- training hyperparameters
-- quantitative metrics:
-  - true detection rate
-  - false positive rate
-  - per-class performance
-- qualitative examples:
-  - successful detections
-  - false positives
-  - failure cases
+| Artifact | Path | Contents |
+| --- | --- | --- |
+| Dataset summary | `artifacts/dataset/dataset_summary.json` | Split counts, category ids, missing backgrounds |
+| Training report | `artifacts/models/detector/training_report.json` | Per-epoch loss, val TDR, `neg_test` metrics, threshold sweep |
+| Evaluation report | `artifacts/reports/evaluation/detector_evaluation_report.json` | Multi-threshold evaluation, failure case paths |
+| Sanity report | `artifacts/reports/dataset_sanity_report.json` | Integrity checks before training |
 
-Placeholder note:
+**What to paste into the final write-up**
 
-> Final detector results are not yet inserted into this appendix draft.
+- Dataset size and split counts (from `dataset_summary.json`)
+- Detector architecture: Faster R-CNN with MobileNetV3-Large-320 FPN (torchvision),
+  plus optional YOLOv8n if `train-yolo` was run
+- Hyperparameters: see **Section 3d** and the committed `configs/dcc_gpu.json`
+- Quantitative: TDR, image-level FPR on `neg_test`, per-class rates — from
+  training/evaluation JSON
+- Qualitative: overlays under `artifacts/reports/sanity_overlays/`, failure
+  examples under `artifacts/reports/evaluation/failure_examples/`, notebook
+  `notebooks/dcc_pipeline_demo.ipynb`
+
+**Status**
+
+> Final numeric tables and cherry-picked figures for the course submission are
+> still to be filled in from the artifacts above after the definitive training
+> run.
 
 ## 14. Reproducibility Notes
 
 To reproduce the current pipeline, a reader should have:
 
 - the repository
-- the `uv` environment
-- Blender installed and accessible
-- the kitchen image corpus referenced in the manifest
-- optional local pest assets under `assets/pests/`
+- the `uv` environment (`uv sync` installs `pyproject.toml` dependencies)
+- Blender installed and on `PATH` (or path set in config as `blender_executable`)
+- **`ffmpeg`** if video muxing is enabled in config
+- the kitchen image corpus referenced by the manifest (default layout under
+  `data/raw/kitchen/` per `configs/dcc_gpu.json` keys `kitchen_photo_dir` and
+  `kitchen_manifest`)
+- optional local pest assets under `assets/pests/` (see `assets/pests/CREDITS.md`
+  for third-party model sources; large binaries may be omitted from git)
 - access to the DCC account/partition configuration described in
-  `DCC_DEPLOYMENT.md`
+  `DCC_DEPLOYMENT.md` when running on Duke
 
 The technical workflow is intended to be reproducible from config files and
 documented command-line entrypoints. The cluster execution path is documented in
-`DCC_DEPLOYMENT.md`, and the generated outputs can be reviewed in
-`notebooks/dcc_pipeline_demo.ipynb`.
+`DCC_DEPLOYMENT.md` (including **Section 8** expected output paths), and the
+generated outputs can be reviewed in `notebooks/dcc_pipeline_demo.ipynb`.
+
+**Note on public dataset URLs:** the course text asks for links to **raw**
+datasets. This project assumes **team-provided** kitchen photos and optional
+downloadable 3D assets documented in `CREDITS.md`; there is no single bundled
+download URL for kitchen imagery inside the repo. The submission should add an
+explicit statement of data provenance (license, collection method, or public URL
+if applicable) wherever those images ultimately come from.
 
 ## 15. Limitations
 

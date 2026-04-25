@@ -22,8 +22,21 @@ Recommended workflow:
 Supporting materials elsewhere in the repository:
 
 - `DCC_DEPLOYMENT.md`
-  Instructor-facing DCC reproduction guide.
+  Instructor-facing DCC reproduction guide (recommended job order, expected
+  artifact paths under **Section 8**).
 - `CONTRIBUTIONS.md`
   Team contribution split.
+- `README.md`
+  Data directory conventions, full CLI list, and design notes.
+- `pyproject.toml`
+  Python version (`>=3.12`) and pinned runtime dependencies.
+- `configs/dcc_gpu.json`
+  Authoritative defaults for DCC render, training, evaluation, and cluster
+  resources.
 - `notebooks/dcc_pipeline_demo.ipynb`
   Lightweight notebook demo for reviewing generated DCC artifacts.
+
+The technical appendix now also documents: the kitchen manifest CSV schema,
+module-to-file map, exact default hyperparameters from `dcc_gpu.json`, metric
+definitions in code, and the difference between core dependencies and optional
+`ultralytics` / planned `transformers` usage.
