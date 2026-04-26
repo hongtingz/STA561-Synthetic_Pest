@@ -10,6 +10,8 @@ from prob_ml.config import PipelineConfig
 from prob_ml.detector import (
     CATEGORY_ID_TO_NAME,
     build_detection_model,
+    is_transformer_detector,
+    predict_transformer_batch,
     resolve_repo_path,
     select_device,
     tensor_prediction_to_python,
@@ -88,13 +90,14 @@ def run_infer(config: PipelineConfig) -> None:
         inference.get("predictions_json", "artifacts/infer/predictions.json"),
     )
     threshold = float(inference.get("threshold", 0.5))
+    transformer_image_size = int(training.get("transformer_image_size", 640))
     device = select_device(str(training.get("device", "auto")))
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model_name = str(
         checkpoint.get(
             "model_name",
-            training.get("detector_model", "fasterrcnn_mobilenet_v3_large_320_fpn"),
+            training.get("detector_model", "vit"),
         )
     )
     model = build_detection_model(model_name)
@@ -103,10 +106,18 @@ def run_infer(config: PipelineConfig) -> None:
     model.eval()
 
     with Image.open(input_image) as image:
-        image_tensor = transform_functional.to_tensor(image.convert("RGB")).to(device)
+        image_tensor = transform_functional.to_tensor(image.convert("RGB"))
     with torch.no_grad():
-        prediction = model([image_tensor])[0]
-    prediction_payload = tensor_prediction_to_python(prediction)
+        if is_transformer_detector(model_name):
+            prediction_payload = predict_transformer_batch(
+                model,
+                [image_tensor],
+                device,
+                image_size=transformer_image_size,
+            )[0]
+        else:
+            prediction = model([image_tensor.to(device)])[0]
+            prediction_payload = tensor_prediction_to_python(prediction)
     filtered_payload = {
         "image": str(input_image),
         "threshold": threshold,

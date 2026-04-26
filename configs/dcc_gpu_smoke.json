@@ -36,20 +36,24 @@
     "frames_dir": "artifacts/render/frames",
     "annotations_raw": "artifacts/render/annotations.json",
     "coco_annotations": "artifacts/dataset/coco_annotations.json",
-    "video_output": "artifacts/render/video.mp4"
+    "video_output": "artifacts/render/video.mp4",
+    "frame_stride": 1,
+    "max_frames_per_background": 50
   },
   "training": {
-    "model_name": "fasterrcnn_mobilenet_v3_large_320_fpn",
-    "detector_model": "fasterrcnn_mobilenet_v3_large_320_fpn",
+    "model_name": "vit",
+    "detector_model": "vit",
     "output_dir": "artifacts/models/detector",
     "train_annotations": "artifacts/dataset/coco_train.json",
     "val_annotations": "artifacts/dataset/coco_val.json",
     "neg_test_annotations": "artifacts/dataset/coco_neg_test.json",
-    "epochs": 2,
+    "epochs": 3,
     "batch_size": 2,
-    "learning_rate": 1e-4,
+    "learning_rate": 2e-5,
     "weight_decay": 1e-4,
-    "pretrained": false,
+    "pretrained": true,
+    "checkpoint_interval": 2,
+    "transformer_image_size": 640,
     "augmentation": {
       "horizontal_flip_probability": 0.5,
       "color_jitter": {
@@ -61,7 +65,7 @@
     "val_split": 0.2,
     "device": "auto",
     "num_workers": 0,
-    "score_threshold": 0.5,
+    "score_threshold": 0.3,
     "iou_threshold": 0.5,
     "threshold_sweep": [0.3, 0.5, 0.7]
   },
@@ -106,5 +110,8 @@
     "memory": "32G",
     "job_script_dir": "jobs",
     "log_dir": "logs/dcc"
+  },
+  "pipeline": {
+    "stages": ["render-batch", "convert", "sanity-check", "train", "evaluate"]
   }
 }

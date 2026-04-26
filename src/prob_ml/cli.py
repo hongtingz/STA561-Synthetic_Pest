@@ -60,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
             "pipeline",
             "render",
             "render-batch",
+            "convert",
             "sanity-check",
             "train",
             "evaluate",
@@ -82,6 +83,35 @@ def run_doctor(config_path: str) -> int:
     return 0
 
 
+def run_named_stage(command: str, config) -> None:
+    """Dispatch a stage name to the corresponding implementation."""
+    if command == "render":
+        run_render(config)
+        return
+    if command == "render-batch":
+        run_render_batch(config)
+        return
+    if command == "convert":
+        run_convert(config)
+        return
+    if command == "sanity-check":
+        run_sanity_check(config)
+        return
+    if command == "train":
+        run_train(config)
+        return
+    if command == "evaluate":
+        run_evaluate(config)
+        return
+    if command == "train-yolo":
+        run_train_yolo(config)
+        return
+    if command == "infer":
+        run_infer(config)
+        return
+    raise ValueError(f"Unsupported pipeline stage: {command}")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     parser = build_parser()
@@ -100,54 +130,34 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {path.relative_to(config.repo_root)}")
         return 0
 
-    if args.command == "render":
-        run_render(config)
-        return 0
-
-    if args.command == "render-batch":
-        run_render_batch(config)
-        return 0
-
-    if args.command == "convert":
-        run_convert(config)
-        return 0
-
-    if args.command == "sanity-check":
-        run_sanity_check(config)
-        return 0
-
-    if args.command == "train":
-        run_train(config)
-        return 0
-
-    if args.command == "evaluate":
-        run_evaluate(config)
-        return 0
-
-    if args.command == "train-yolo":
-        run_train_yolo(config)
-        return 0
-
-    if args.command == "infer":
-        run_infer(config)
+    if args.command in {
+        "render",
+        "render-batch",
+        "convert",
+        "sanity-check",
+        "train",
+        "evaluate",
+        "train-yolo",
+        "infer",
+    }:
+        run_named_stage(args.command, config)
         return 0
 
     if args.command == "pipeline":
         print(render_plan(config))
-        print("\n== render ==")
-        run_render(config)
-        print("\n== render-batch ==")
-        run_render_batch(config)
-        print("\n== convert ==")
-        run_convert(config)
-        print("\n== sanity-check ==")
-        run_sanity_check(config)
-        print("\n== train ==")
-        run_train(config)
-        print("\n== evaluate ==")
-        run_evaluate(config)
-        print("\n== infer ==")
-        run_infer(config)
+        pipeline_cfg = config.section("pipeline")
+        stages = pipeline_cfg.get(
+            "stages",
+            ["render-batch", "convert", "sanity-check", "train", "evaluate"],
+        )
+        if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
+            raise TypeError("pipeline.stages must be a JSON array of command names.")
+        print("\nPipeline stages:")
+        for stage in stages:
+            print(f"  - {stage}")
+        for stage in stages:
+            print(f"\n== {stage} ==")
+            run_named_stage(stage, config)
         return 0
 
     if args.command == "dcc-submit":

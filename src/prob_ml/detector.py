@@ -15,6 +15,15 @@ CATEGORY_ID_TO_NAME = {
     3: "cockroach",
 }
 NUM_DETECTOR_CLASSES = len(CATEGORY_ID_TO_NAME) + 1
+TRANSFORMER_DETECTOR_CLASSES = len(CATEGORY_ID_TO_NAME)
+YOLOS_TINY_MODEL_ID = "hustvl/yolos-tiny"
+DETECTOR_MODEL_ALIASES = {
+    "vit": YOLOS_TINY_MODEL_ID,
+    "vit_detector": YOLOS_TINY_MODEL_ID,
+    "yolos": YOLOS_TINY_MODEL_ID,
+    "yolos-tiny": YOLOS_TINY_MODEL_ID,
+    "yolos_tiny": YOLOS_TINY_MODEL_ID,
+}
 
 
 @dataclass
@@ -267,23 +276,174 @@ def select_device(raw_device: str):
     return torch.device(device)
 
 
+def normalize_detector_model_name(model_name: str) -> str:
+    """Normalize detector aliases to a canonical model identifier."""
+    normalized = str(model_name).strip()
+    if normalized.startswith("hf:"):
+        normalized = normalized[3:]
+    return DETECTOR_MODEL_ALIASES.get(normalized, normalized)
+
+
+def is_transformer_detector(model_name: str) -> bool:
+    """Return True when a detector model is transformer-based."""
+    return normalize_detector_model_name(model_name) == YOLOS_TINY_MODEL_ID
+
+
+def _xyxy_to_cxcywh_tensor(boxes):
+    import torch
+
+    if boxes.numel() == 0:
+        return torch.zeros((0, 4), dtype=boxes.dtype, device=boxes.device)
+    converted = boxes.clone()
+    converted[:, 2] = boxes[:, 2] - boxes[:, 0]
+    converted[:, 3] = boxes[:, 3] - boxes[:, 1]
+    converted[:, 0] = boxes[:, 0] + converted[:, 2] / 2.0
+    converted[:, 1] = boxes[:, 1] + converted[:, 3] / 2.0
+    return converted
+
+
+def _cxcywh_to_xyxy_tensor(boxes):
+    import torch
+
+    if boxes.numel() == 0:
+        return torch.zeros((0, 4), dtype=boxes.dtype, device=boxes.device)
+    converted = boxes.clone()
+    converted[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.0
+    converted[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.0
+    converted[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.0
+    converted[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.0
+    return converted
+
+
+def prepare_transformer_training_batch(
+    images,
+    targets,
+    device,
+    *,
+    image_size: int,
+):
+    """Resize images and convert COCO-style targets to YOLOS training labels."""
+    import torch
+    from torchvision.transforms.functional import resize
+
+    resized_images = []
+    labels = []
+    for image_tensor, target in zip(images, targets, strict=True):
+        original_height = float(image_tensor.shape[-2])
+        original_width = float(image_tensor.shape[-1])
+        resized_image = resize(image_tensor, [image_size, image_size], antialias=True)
+        resized_images.append(resized_image)
+
+        boxes = target["boxes"].detach().clone()
+        if boxes.numel():
+            boxes[:, [0, 2]] *= float(image_size) / original_width
+            boxes[:, [1, 3]] *= float(image_size) / original_height
+            boxes = boxes / float(image_size)
+            boxes = _xyxy_to_cxcywh_tensor(boxes)
+        else:
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+
+        class_labels = target["labels"].detach().clone() - 1
+        labels.append(
+            {
+                "class_labels": class_labels.to(device),
+                "boxes": boxes.to(device),
+            }
+        )
+
+    pixel_values = torch.stack(resized_images).to(device)
+    return pixel_values, labels
+
+
+def predict_transformer_batch(
+    model,
+    images,
+    device,
+    *,
+    image_size: int,
+):
+    """Run a transformer detector and convert outputs to project prediction dicts."""
+    import torch
+    from torchvision.transforms.functional import resize
+
+    resized_images = []
+    original_sizes: list[tuple[int, int]] = []
+    for image_tensor in images:
+        original_sizes.append((int(image_tensor.shape[-2]), int(image_tensor.shape[-1])))
+        resized_images.append(resize(image_tensor, [image_size, image_size], antialias=True))
+
+    pixel_values = torch.stack(resized_images).to(device)
+    outputs = model(pixel_values=pixel_values)
+    logits = outputs.logits.detach().cpu()
+    pred_boxes = outputs.pred_boxes.detach().cpu()
+
+    predictions = []
+    for batch_logits, batch_boxes, (height, width) in zip(
+        logits,
+        pred_boxes,
+        original_sizes,
+        strict=True,
+    ):
+        probabilities = batch_logits.softmax(-1)
+        scores, labels = probabilities[..., :-1].max(-1)
+        boxes_xyxy = _cxcywh_to_xyxy_tensor(batch_boxes)
+        boxes_xyxy[:, [0, 2]] *= float(width)
+        boxes_xyxy[:, [1, 3]] *= float(height)
+        boxes_xyxy[:, [0, 2]] = boxes_xyxy[:, [0, 2]].clamp(0.0, float(width))
+        boxes_xyxy[:, [1, 3]] = boxes_xyxy[:, [1, 3]].clamp(0.0, float(height))
+        predictions.append(
+            {
+                "boxes": boxes_xyxy.tolist(),
+                "labels": (labels + 1).tolist(),
+                "scores": scores.tolist(),
+            }
+        )
+    return predictions
+
+
 def build_detection_model(
     model_name: str,
     *,
     num_classes: int = NUM_DETECTOR_CLASSES,
     pretrained: bool = False,
 ):
-    """Build a torchvision detector, optionally using pretrained COCO weights."""
+    """Build a detector model for the project training and evaluation pipeline."""
+    normalized_name = normalize_detector_model_name(model_name)
+
+    if normalized_name == YOLOS_TINY_MODEL_ID:
+        from transformers import AutoConfig, AutoModelForObjectDetection
+
+        id2label = {
+            0: "mouse",
+            1: "rat",
+            2: "cockroach",
+        }
+        label2id = {label: index for index, label in id2label.items()}
+        if pretrained:
+            return AutoModelForObjectDetection.from_pretrained(
+                normalized_name,
+                num_labels=TRANSFORMER_DETECTOR_CLASSES,
+                id2label=id2label,
+                label2id=label2id,
+                ignore_mismatched_sizes=True,
+            )
+
+        config = AutoConfig.from_pretrained(normalized_name)
+        config.num_labels = TRANSFORMER_DETECTOR_CLASSES
+        config.id2label = id2label
+        config.label2id = label2id
+        return AutoModelForObjectDetection.from_config(config)
+
     from torchvision.models.detection import (
         FasterRCNN_MobileNet_V3_Large_320_FPN_Weights,
         fasterrcnn_mobilenet_v3_large_320_fpn,
     )
     from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
-    if model_name != "fasterrcnn_mobilenet_v3_large_320_fpn":
+    if normalized_name != "fasterrcnn_mobilenet_v3_large_320_fpn":
         raise ValueError(
-            "Only fasterrcnn_mobilenet_v3_large_320_fpn is supported by the "
-            f"built-in baseline, got {model_name!r}."
+            "Supported detector models are fasterrcnn_mobilenet_v3_large_320_fpn "
+            f"and {YOLOS_TINY_MODEL_ID!r}, got {model_name!r}."
         )
 
     weights = FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT if pretrained else None
@@ -317,9 +477,14 @@ def tensor_target_to_python(target: dict[str, Any]) -> dict[str, Any]:
 
 def checkpoint_payload(model, *, model_name: str, metrics: dict[str, Any]) -> dict[str, Any]:
     """Build a serializable detector checkpoint payload."""
+    normalized_name = normalize_detector_model_name(model_name)
     return {
-        "model_name": model_name,
-        "num_classes": NUM_DETECTOR_CLASSES,
+        "model_name": normalized_name,
+        "num_classes": (
+            TRANSFORMER_DETECTOR_CLASSES
+            if is_transformer_detector(normalized_name)
+            else NUM_DETECTOR_CLASSES
+        ),
         "categories": CATEGORY_ID_TO_NAME,
         "model_state_dict": model.state_dict(),
         "metrics": metrics,

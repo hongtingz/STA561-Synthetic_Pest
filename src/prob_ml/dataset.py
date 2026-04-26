@@ -178,6 +178,12 @@ def _build_positive_split(
     start_annotation_id: int,
 ) -> tuple[SplitArtifacts, int, int]:
     repo_root = config.repo_root
+    dataset_cfg = config.section("dataset")
+    frame_stride = max(1, int(dataset_cfg.get("frame_stride", 1)))
+    max_frames_per_background = dataset_cfg.get("max_frames_per_background")
+    max_frames_per_background = (
+        int(max_frames_per_background) if max_frames_per_background not in {None, ""} else None
+    )
     coco = _base_coco(f"Synthetic pest detection split: {split}")
     image_sources: dict[int, Path] = {}
     missing_backgrounds: list[str] = []
@@ -191,7 +197,16 @@ def _build_positive_split(
             missing_backgrounds.append(record.image_id)
             continue
 
+        selected_frames = 0
         for frame in _load_annotations(annotations_path):
+            frame_number = int(frame["frame"])
+            if frame_stride > 1 and (frame_number - 1) % frame_stride != 0:
+                continue
+            if (
+                max_frames_per_background is not None
+                and selected_frames >= max_frames_per_background
+            ):
+                break
             frame_path = Path(str(frame["file"])).resolve()
             if not frame_path.exists():
                 frame_path = resolved_paths["frames_dir"] / Path(str(frame["file"])).name
@@ -243,6 +258,7 @@ def _build_positive_split(
                 next_annotation_id += 1
 
             next_image_id += 1
+            selected_frames += 1
 
     return (
         SplitArtifacts(
@@ -510,6 +526,8 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
         "manifest": _to_repo_relative(manifest_path, config.repo_root),
         "coco_category_ids": {label: coco_id for label, coco_id in LABEL_TO_COCO_ID.items()},
         "yolo_category_ids": {label: yolo_id for label, yolo_id in LABEL_TO_YOLO_ID.items()},
+        "frame_stride": int(config.section("dataset").get("frame_stride", 1)),
+        "max_frames_per_background": config.section("dataset").get("max_frames_per_background"),
         "splits": {},
     }
     for split, artifacts in positive_artifacts.items():

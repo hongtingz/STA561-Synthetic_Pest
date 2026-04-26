@@ -49,6 +49,11 @@ def render_plan(config: PipelineConfig) -> str:
     training = config.section("training")
     inference = config.section("inference")
     dcc = config.section("dcc")
+    pipeline = config.section("pipeline")
+    stages = pipeline.get(
+        "stages",
+        ["render-batch", "convert", "sanity-check", "train", "evaluate"],
+    )
 
     return "\n".join(
         [
@@ -75,6 +80,7 @@ def render_plan(config: PipelineConfig) -> str:
             f"Training model: {training.get('model_name', 'unset')}",
             f"Training output: {training.get('output_dir', 'unset')}",
             f"Inference output: {inference.get('output_image', 'unset')}",
+            f"Pipeline stages: {', '.join(stages) if isinstance(stages, list) else 'unset'}",
             f"DCC partition: {dcc.get('partition', 'unset')}",
         ]
     )

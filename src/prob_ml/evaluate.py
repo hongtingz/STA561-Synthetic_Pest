@@ -12,7 +12,9 @@ from prob_ml.detector import (
     CocoDetectionDataset,
     build_detection_model,
     collate_detection_batch,
+    is_transformer_detector,
     match_prediction_to_target,
+    predict_transformer_batch,
     resolve_repo_path,
     select_device,
     tensor_prediction_to_python,
@@ -104,6 +106,8 @@ def _evaluate_split(
     dataset: CocoDetectionDataset,
     device,
     *,
+    model_name: str,
+    transformer_image_size: int,
     split: str,
     thresholds: list[float],
     iou_threshold: float,
@@ -117,8 +121,16 @@ def _evaluate_split(
     model.eval()
     with torch.no_grad():
         for index, (images, targets) in enumerate(loader):
-            image_tensor = images[0].to(device)
-            prediction = tensor_prediction_to_python(model([image_tensor])[0])
+            if is_transformer_detector(model_name):
+                prediction = predict_transformer_batch(
+                    model,
+                    images,
+                    device,
+                    image_size=transformer_image_size,
+                )[0]
+            else:
+                image_tensor = images[0].to(device)
+                prediction = tensor_prediction_to_python(model([image_tensor])[0])
             target = tensor_target_to_python(targets[0])
             image_info = dataset.images[index]
             pairs.append(
@@ -219,13 +231,14 @@ def run_evaluate(config: PipelineConfig) -> None:
         thresholds = [float(training.get("score_threshold", 0.5))]
     iou_threshold = float(evaluation.get("iou_threshold", training.get("iou_threshold", 0.5)))
     max_failure_examples = int(evaluation.get("max_failure_examples", 12))
+    transformer_image_size = int(training.get("transformer_image_size", 640))
 
     device = select_device(str(training.get("device", "auto")))
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model_name = str(
         checkpoint.get(
             "model_name",
-            training.get("detector_model", "fasterrcnn_mobilenet_v3_large_320_fpn"),
+            training.get("detector_model", "vit"),
         )
     )
     model = build_detection_model(model_name)
@@ -252,6 +265,8 @@ def run_evaluate(config: PipelineConfig) -> None:
             model,
             dataset,
             device,
+            model_name=model_name,
+            transformer_image_size=transformer_image_size,
             split=split,
             thresholds=thresholds,
             iou_threshold=iou_threshold,

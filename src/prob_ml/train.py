@@ -14,8 +14,11 @@ from prob_ml.detector import (
     checkpoint_payload,
     collate_detection_batch,
     combine_match_summaries,
+    is_transformer_detector,
     match_prediction_to_target,
     move_targets_to_device,
+    prepare_transformer_training_batch,
+    predict_transformer_batch,
     resolve_repo_path,
     select_device,
     tensor_prediction_to_python,
@@ -31,6 +34,21 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
+
+
+def _save_checkpoint(
+    checkpoint_path: Path,
+    *,
+    torch_module,
+    model,
+    model_name: str,
+    metrics: dict[str, Any],
+) -> None:
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    torch_module.save(
+        checkpoint_payload(model, model_name=model_name, metrics=metrics),
+        checkpoint_path,
+    )
 
 
 def _build_loader(dataset, *, batch_size: int, shuffle: bool, num_workers: int):
@@ -49,19 +67,33 @@ def _collect_prediction_pairs(
     model,
     loader,
     device,
+    *,
+    model_name: str,
+    transformer_image_size: int,
 ):
     import torch
 
     pairs = []
     model.eval()
     for images, targets in loader:
-        images = [image.to(device) for image in images]
         with torch.no_grad():
-            predictions = model(images)
+            if is_transformer_detector(model_name):
+                predictions = predict_transformer_batch(
+                    model,
+                    images,
+                    device,
+                    image_size=transformer_image_size,
+                )
+            else:
+                image_tensors = [image.to(device) for image in images]
+                predictions = [
+                    tensor_prediction_to_python(prediction)
+                    for prediction in model(image_tensors)
+                ]
         for prediction, target in zip(predictions, targets, strict=True):
             pairs.append(
                 (
-                    tensor_prediction_to_python(prediction),
+                    prediction,
                     tensor_target_to_python(target),
                 )
             )
@@ -91,11 +123,19 @@ def _evaluate_loader(
     loader,
     device,
     *,
+    model_name: str,
+    transformer_image_size: int,
     score_threshold: float,
     iou_threshold: float,
 ) -> dict[str, Any]:
     return _summarize_prediction_pairs(
-        _collect_prediction_pairs(model, loader, device),
+        _collect_prediction_pairs(
+            model,
+            loader,
+            device,
+            model_name=model_name,
+            transformer_image_size=transformer_image_size,
+        ),
         score_threshold=score_threshold,
         iou_threshold=iou_threshold,
     )
@@ -106,10 +146,18 @@ def _evaluate_threshold_sweep(
     loader,
     device,
     *,
+    model_name: str,
+    transformer_image_size: int,
     thresholds: list[float],
     iou_threshold: float,
 ) -> dict[str, Any]:
-    pairs = _collect_prediction_pairs(model, loader, device)
+    pairs = _collect_prediction_pairs(
+        model,
+        loader,
+        device,
+        model_name=model_name,
+        transformer_image_size=transformer_image_size,
+    )
     return {
         f"{threshold:.2f}": _summarize_prediction_pairs(
             pairs,
@@ -121,7 +169,7 @@ def _evaluate_threshold_sweep(
 
 
 def run_train(config: PipelineConfig) -> None:
-    """Train a lightweight torchvision detector baseline."""
+    """Train the configured detector for the current pipeline."""
     try:
         import torch
     except ModuleNotFoundError as exc:
@@ -148,7 +196,7 @@ def run_train(config: PipelineConfig) -> None:
         training.get("neg_test_annotations", "artifacts/dataset/coco_neg_test.json"),
     )
     model_name = str(
-        training.get("detector_model", "fasterrcnn_mobilenet_v3_large_320_fpn")
+        training.get("detector_model", "vit")
     )
     epochs = int(training.get("epochs", 5))
     batch_size = int(training.get("batch_size", 2))
@@ -159,6 +207,7 @@ def run_train(config: PipelineConfig) -> None:
     iou_threshold = float(training.get("iou_threshold", 0.5))
     threshold_sweep = [float(value) for value in training.get("threshold_sweep", [])]
     pretrained = bool(training.get("pretrained", False))
+    checkpoint_interval = max(1, int(training.get("checkpoint_interval", 3)))
     augmentation = training.get("augmentation", {})
     if augmentation is None:
         augmentation = {}
@@ -166,6 +215,7 @@ def run_train(config: PipelineConfig) -> None:
         raise TypeError("training.augmentation must be a JSON object.")
     max_train_images = training.get("max_train_images")
     max_val_images = training.get("max_val_images")
+    transformer_image_size = int(training.get("transformer_image_size", 640))
 
     print("Detector training")
     print(f"  model={model_name}")
@@ -173,6 +223,8 @@ def run_train(config: PipelineConfig) -> None:
     print(f"  val_annotations={val_annotations}")
     print(f"  neg_test_annotations={neg_annotations}")
     print(f"  pretrained={pretrained}")
+    print(f"  checkpoint_interval={checkpoint_interval}")
+    print(f"  transformer_image_size={transformer_image_size}")
     print(f"  threshold_sweep={threshold_sweep or [score_threshold]}")
     print(f"  coco_annotations={dataset.get('coco_annotations')}")
     print(f"  output_dir={output_dir}")
@@ -217,6 +269,7 @@ def run_train(config: PipelineConfig) -> None:
     device = select_device(str(training.get("device", "auto")))
     model = build_detection_model(model_name, pretrained=pretrained)
     model.to(device)
+    checkpoints_dir = output_dir / "checkpoints"
     optimizer = torch.optim.AdamW(
         [parameter for parameter in model.parameters() if parameter.requires_grad],
         lr=learning_rate,
@@ -224,16 +277,27 @@ def run_train(config: PipelineConfig) -> None:
     )
 
     history = []
+    saved_checkpoints: list[str] = []
     for epoch in range(1, epochs + 1):
         start_time = perf_counter()
         model.train()
         running_loss = 0.0
         batch_count = 0
         for images, targets in train_loader:
-            images = [image.to(device) for image in images]
-            targets = move_targets_to_device(targets, device)
-            loss_dict = model(images, targets)
-            loss = sum(loss_value for loss_value in loss_dict.values())
+            if is_transformer_detector(model_name):
+                pixel_values, labels = prepare_transformer_training_batch(
+                    images,
+                    targets,
+                    device,
+                    image_size=transformer_image_size,
+                )
+                outputs = model(pixel_values=pixel_values, labels=labels)
+                loss = outputs.loss
+            else:
+                images = [image.to(device) for image in images]
+                targets = move_targets_to_device(targets, device)
+                loss_dict = model(images, targets)
+                loss = sum(loss_value for loss_value in loss_dict.values())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -245,6 +309,8 @@ def run_train(config: PipelineConfig) -> None:
             model,
             val_loader,
             device,
+            model_name=model_name,
+            transformer_image_size=transformer_image_size,
             score_threshold=score_threshold,
             iou_threshold=iou_threshold,
         )
@@ -259,12 +325,29 @@ def run_train(config: PipelineConfig) -> None:
             f"  epoch={epoch}/{epochs} loss={avg_loss:.4f} "
             f"val_tdr={val_metrics.get('true_detection_rate', 0.0):.3f}"
         )
+        if epoch % checkpoint_interval == 0:
+            epoch_checkpoint = checkpoints_dir / f"epoch_{epoch:03d}.pt"
+            _save_checkpoint(
+                epoch_checkpoint,
+                torch_module=torch,
+                model=model,
+                model_name=model_name,
+                metrics={
+                    "epoch": epoch,
+                    "train_loss": avg_loss,
+                    "val_metrics": val_metrics,
+                },
+            )
+            saved_checkpoints.append(str(epoch_checkpoint))
+            print(f"  saved_checkpoint={epoch_checkpoint}")
 
     neg_metrics = (
         _evaluate_loader(
             model,
             neg_loader,
             device,
+            model_name=model_name,
+            transformer_image_size=transformer_image_size,
             score_threshold=score_threshold,
             iou_threshold=iou_threshold,
         )
@@ -277,6 +360,8 @@ def run_train(config: PipelineConfig) -> None:
             model,
             val_loader,
             device,
+            model_name=model_name,
+            transformer_image_size=transformer_image_size,
             thresholds=sweep_thresholds,
             iou_threshold=iou_threshold,
         ),
@@ -285,6 +370,8 @@ def run_train(config: PipelineConfig) -> None:
                 model,
                 neg_loader,
                 device,
+                model_name=model_name,
+                transformer_image_size=transformer_image_size,
                 thresholds=sweep_thresholds,
                 iou_threshold=iou_threshold,
             )
@@ -300,9 +387,12 @@ def run_train(config: PipelineConfig) -> None:
         "threshold_sweep": threshold_sweep_metrics,
     }
     checkpoint_path = output_dir / "detector.pt"
-    torch.save(
-        checkpoint_payload(model, model_name=model_name, metrics=final_metrics),
+    _save_checkpoint(
         checkpoint_path,
+        torch_module=torch,
+        model=model,
+        model_name=model_name,
+        metrics=final_metrics,
     )
     report_path = output_dir / "training_report.json"
     _write_json(
@@ -317,6 +407,10 @@ def run_train(config: PipelineConfig) -> None:
             "learning_rate": learning_rate,
             "weight_decay": weight_decay,
             "pretrained": pretrained,
+            "checkpoint_interval": checkpoint_interval,
+            "checkpoint_dir": str(checkpoints_dir),
+            "saved_checkpoints": saved_checkpoints,
+            "transformer_image_size": transformer_image_size,
             "augmentation": augmentation,
             "dataset_counts": {
                 "train_images": len(train_dataset),

@@ -354,3 +354,65 @@ def test_convert_batch_render_outputs_recovers_from_stale_absolute_frame_path(
 
     assert len(coco_train["images"]) == 1
     assert len(coco_val["images"]) == 1
+
+
+def test_convert_batch_render_outputs_respects_frame_stride(tmp_path: Path) -> None:
+    kitchen_dir = tmp_path / "data" / "raw" / "kitchen" / "images"
+    _write_image(kitchen_dir / "train_bg.jpg", size=(160, 90))
+    _write_image(kitchen_dir / "val_bg.jpg", size=(160, 90))
+
+    manifest_path = tmp_path / "data" / "raw" / "kitchen" / "metadata" / "manifest.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "\n".join(
+            [
+                "image_id,filename,relative_path,split,enabled",
+                "kitchen_0001,train_bg.jpg,data/raw/kitchen/images/train_bg.jpg,train,true",
+                "kitchen_0002,val_bg.jpg,data/raw/kitchen/images/val_bg.jpg,val,true",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    render_root = tmp_path / "artifacts" / "batch_render"
+    train_dir = render_root / "kitchen_0001"
+    val_dir = render_root / "kitchen_0002"
+    train_dir.mkdir(parents=True, exist_ok=True)
+    val_dir.mkdir(parents=True, exist_ok=True)
+
+    train_annotations = []
+    val_annotations = []
+    for frame_idx in range(1, 6):
+        train_frame = train_dir / "frames" / f"frame_{frame_idx:05d}.png"
+        val_frame = val_dir / "frames" / f"frame_{frame_idx:05d}.png"
+        _write_image(train_frame, size=(64, 32))
+        _write_image(val_frame, size=(64, 32))
+        train_annotations.append(
+            {
+                "frame": frame_idx,
+                "file": str(train_frame.resolve()),
+                "pests": [],
+            }
+        )
+        val_annotations.append(
+            {
+                "frame": frame_idx,
+                "file": str(val_frame.resolve()),
+                "pests": [],
+            }
+        )
+
+    (train_dir / "annotations.json").write_text(json.dumps(train_annotations), encoding="utf-8")
+    (val_dir / "annotations.json").write_text(json.dumps(val_annotations), encoding="utf-8")
+
+    config = _build_config(tmp_path)
+    config.raw["dataset"]["frame_stride"] = 2
+
+    outputs = convert_batch_render_outputs(config)
+    coco_train = json.loads(outputs["coco_train"].read_text(encoding="utf-8"))
+    coco_val = json.loads(outputs["coco_val"].read_text(encoding="utf-8"))
+    summary = json.loads(outputs["summary"].read_text(encoding="utf-8"))
+
+    assert [image["frame_index"] for image in coco_train["images"]] == [1, 3, 5]
+    assert [image["frame_index"] for image in coco_val["images"]] == [1, 3, 5]
+    assert summary["frame_stride"] == 2
