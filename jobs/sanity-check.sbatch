@@ -4,7 +4,7 @@
 #SBATCH --account=scavenger-h200
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=01:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/dcc/sanity-check-%j.out
 
 set -euo pipefail

@@ -475,10 +475,16 @@ def tensor_target_to_python(target: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def checkpoint_payload(model, *, model_name: str, metrics: dict[str, Any]) -> dict[str, Any]:
+def checkpoint_payload(
+    model,
+    *,
+    model_name: str,
+    metrics: dict[str, Any],
+    extra_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build a serializable detector checkpoint payload."""
     normalized_name = normalize_detector_model_name(model_name)
-    return {
+    payload = {
         "model_name": normalized_name,
         "num_classes": (
             TRANSFORMER_DETECTOR_CLASSES
@@ -489,3 +495,6 @@ def checkpoint_payload(model, *, model_name: str, metrics: dict[str, Any]) -> di
         "model_state_dict": model.state_dict(),
         "metrics": metrics,
     }
+    if extra_state:
+        payload.update(extra_state)
+    return payload

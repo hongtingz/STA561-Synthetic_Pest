@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from prob_ml.config import PipelineConfig
@@ -17,6 +19,23 @@ from prob_ml.layout import (
 from prob_ml.manifest import KitchenPhotoRecord, load_kitchen_photo_manifest
 from prob_ml.preview import save_layout_preview
 from prob_ml.video import mux_frames_to_mp4
+
+
+@dataclass
+class RenderSampleStatus:
+    """Track whether a per-kitchen render output is complete enough to skip."""
+
+    num_frames: int
+    expected_frames: int
+    annotations_ok: bool
+
+    @property
+    def is_complete(self) -> bool:
+        return self.num_frames == self.expected_frames and self.annotations_ok
+
+    @property
+    def is_partial(self) -> bool:
+        return self.num_frames > 0 or self.annotations_ok
 
 
 def _resolve_path(config: PipelineConfig, relative_path: str) -> Path:
@@ -220,6 +239,33 @@ def _maybe_mux_video(config: PipelineConfig, resolved_paths: dict[str, Path]) ->
         print("  video_output=skipped (install ffmpeg or set render.mux_video=false)")
 
 
+def _inspect_render_sample(
+    resolved_paths: dict[str, Path], *, expected_frames: int
+) -> RenderSampleStatus:
+    """Determine whether a batch render sample is already complete."""
+    frames_dir = resolved_paths["frames_dir"]
+    annotations_path = resolved_paths["annotations"]
+
+    num_frames = 0
+    if frames_dir.exists():
+        num_frames = len(list(frames_dir.glob("frame_*.png")))
+
+    annotations_ok = False
+    if annotations_path.exists():
+        try:
+            with annotations_path.open("r", encoding="utf-8") as handle:
+                annotations = json.load(handle)
+            annotations_ok = isinstance(annotations, list) and len(annotations) == expected_frames
+        except (OSError, json.JSONDecodeError):
+            annotations_ok = False
+
+    return RenderSampleStatus(
+        num_frames=num_frames,
+        expected_frames=expected_frames,
+        annotations_ok=annotations_ok,
+    )
+
+
 def run_render(config: PipelineConfig) -> None:
     """Generate a layout spec and prepare the Blender render command."""
     render = config.section("render")
@@ -287,15 +333,31 @@ def run_render_batch(config: PipelineConfig) -> None:
         config,
         render.get("batch_output_dir", "artifacts/batch_render"),
     )
+    expected_frames = int(render.get("fps", 30)) * int(render.get("seconds", 30))
+    resume_completed = bool(render.get("resume_completed", True))
     print("Render batch stage")
     print(f"  manifest={manifest_path}")
     print(f"  batch_output_dir={batch_root}")
     print(f"  selected_images={len(records)}")
     print(f"  execute={bool(render.get('execute', False))}")
+    print(f"  expected_frames_per_kitchen={expected_frames}")
+    print(f"  resume_completed={resume_completed}")
 
     base_seed = int(render.get("scene_seed", 42))
     for index, record in enumerate(records, start=1):
         resolved_paths = resolve_batch_render_paths(config, record)
+        sample_status = _inspect_render_sample(
+            resolved_paths,
+            expected_frames=expected_frames,
+        )
+
+        if sample_status.is_complete and resume_completed:
+            print(
+                f"[{index}/{len(records)}] image_id={record.image_id} "
+                f"status=skip_complete frames={sample_status.num_frames}"
+            )
+            continue
+
         layout_spec_path, diagnostics = prepare_layout_outputs(
             config,
             record.photo_path,
@@ -309,6 +371,10 @@ def run_render_batch(config: PipelineConfig) -> None:
         print(f"  photo={record.photo_path}")
         print(f"  layout_spec={layout_spec_path}")
         print(f"  frames_dir={resolved_paths['frames_dir']}")
+        if sample_status.num_frames > 0 and not sample_status.is_complete:
+            print(
+                f"  status=resume_partial existing_frames={sample_status.num_frames}"
+            )
         print(
             "  layout_summary="
             f"room=({diagnostics['room']['width']}x"

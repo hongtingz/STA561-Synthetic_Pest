@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 from time import perf_counter
 from typing import Any
 
@@ -41,14 +42,78 @@ def _save_checkpoint(
     *,
     torch_module,
     model,
+    optimizer,
     model_name: str,
     metrics: dict[str, Any],
+    extra_state: dict[str, Any] | None = None,
 ) -> None:
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    payload_extra_state = {"optimizer_state_dict": optimizer.state_dict()}
+    if extra_state:
+        payload_extra_state.update(extra_state)
     torch_module.save(
-        checkpoint_payload(model, model_name=model_name, metrics=metrics),
+        checkpoint_payload(
+            model,
+            model_name=model_name,
+            metrics=metrics,
+            extra_state=payload_extra_state,
+        ),
         checkpoint_path,
     )
+
+
+def _checkpoint_epoch_from_path(path: Path) -> int:
+    match = re.fullmatch(r"epoch_(\d+)\.pt", path.name)
+    if not match:
+        return -1
+    return int(match.group(1))
+
+
+def _metrics_epoch(payload: dict[str, Any]) -> int:
+    metrics = payload.get("metrics", {})
+    if not isinstance(metrics, dict):
+        return 0
+    epoch_value = metrics.get("epoch", 0)
+    return int(epoch_value) if epoch_value is not None else 0
+
+
+def _load_existing_training_report(report_path: Path) -> dict[str, Any]:
+    if not report_path.exists():
+        return {}
+    with report_path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _move_optimizer_state_to_device(optimizer, device) -> None:
+    for state in optimizer.state.values():
+        if not isinstance(state, dict):
+            continue
+        for key, value in state.items():
+            if hasattr(value, "to"):
+                state[key] = value.to(device)
+
+
+def _resolve_resume_checkpoint_path(
+    *,
+    output_dir: Path,
+    explicit_path: Path | None,
+) -> Path | None:
+    if explicit_path is not None:
+        return explicit_path if explicit_path.exists() else None
+
+    checkpoints_dir = output_dir / "checkpoints"
+    epoch_checkpoints = sorted(
+        checkpoints_dir.glob("epoch_*.pt"),
+        key=_checkpoint_epoch_from_path,
+    )
+    if epoch_checkpoints:
+        return epoch_checkpoints[-1]
+
+    final_checkpoint = output_dir / "detector.pt"
+    if final_checkpoint.exists():
+        return final_checkpoint
+    return None
 
 
 def _build_loader(dataset, *, batch_size: int, shuffle: bool, num_workers: int):
@@ -208,6 +273,8 @@ def run_train(config: PipelineConfig) -> None:
     threshold_sweep = [float(value) for value in training.get("threshold_sweep", [])]
     pretrained = bool(training.get("pretrained", False))
     checkpoint_interval = max(1, int(training.get("checkpoint_interval", 3)))
+    resume_training = bool(training.get("resume", True))
+    resume_checkpoint_raw = training.get("resume_checkpoint")
     augmentation = training.get("augmentation", {})
     if augmentation is None:
         augmentation = {}
@@ -224,6 +291,8 @@ def run_train(config: PipelineConfig) -> None:
     print(f"  neg_test_annotations={neg_annotations}")
     print(f"  pretrained={pretrained}")
     print(f"  checkpoint_interval={checkpoint_interval}")
+    print(f"  resume={resume_training}")
+    print(f"  resume_checkpoint={resume_checkpoint_raw or 'auto'}")
     print(f"  transformer_image_size={transformer_image_size}")
     print(f"  threshold_sweep={threshold_sweep or [score_threshold]}")
     print(f"  coco_annotations={dataset.get('coco_annotations')}")
@@ -276,9 +345,66 @@ def run_train(config: PipelineConfig) -> None:
         weight_decay=weight_decay,
     )
 
-    history = []
-    saved_checkpoints: list[str] = []
-    for epoch in range(1, epochs + 1):
+    report_path = output_dir / "training_report.json"
+    existing_report = _load_existing_training_report(report_path)
+    history = list(existing_report.get("history", []))
+    saved_checkpoints = list(existing_report.get("saved_checkpoints", []))
+    start_epoch = 1
+    existing_history_last_epoch = 0
+    if history and isinstance(history[-1], dict):
+        existing_history_last_epoch = int(history[-1].get("epoch", 0) or 0)
+    final_checkpoint_path = output_dir / "detector.pt"
+    if (
+        resume_training
+        and existing_history_last_epoch >= epochs
+        and final_checkpoint_path.exists()
+    ):
+        print("  existing_training_report_already_reached_target_epochs")
+        print(f"  checkpoint={final_checkpoint_path}")
+        print(f"  training_report={report_path}")
+        return
+
+    if resume_training:
+        explicit_resume_path = (
+            _resolve_path(config, resume_checkpoint_raw)
+            if resume_checkpoint_raw not in {None, ""}
+            else None
+        )
+        resume_checkpoint_path = _resolve_resume_checkpoint_path(
+            output_dir=output_dir,
+            explicit_path=explicit_resume_path,
+        )
+        if resume_checkpoint_path is not None:
+            checkpoint = torch.load(resume_checkpoint_path, map_location=device)
+            checkpoint_model_name = str(checkpoint.get("model_name", model_name))
+            if checkpoint_model_name != model_name:
+                print(
+                    "  resume_checkpoint_ignored="
+                    f"{resume_checkpoint_path} model_name_mismatch({checkpoint_model_name})"
+                )
+            else:
+                model.load_state_dict(checkpoint["model_state_dict"])
+                optimizer_state = checkpoint.get("optimizer_state_dict")
+                if optimizer_state is not None:
+                    optimizer.load_state_dict(optimizer_state)
+                    _move_optimizer_state_to_device(optimizer, device)
+                checkpoint_history = checkpoint.get("history", [])
+                if isinstance(checkpoint_history, list):
+                    history = checkpoint_history
+                checkpoint_saved = checkpoint.get("saved_checkpoints", [])
+                if isinstance(checkpoint_saved, list):
+                    saved_checkpoints = checkpoint_saved
+                start_epoch = _metrics_epoch(checkpoint) + 1
+                print(f"  resume_from={resume_checkpoint_path}")
+                print(f"  resume_start_epoch={start_epoch}")
+
+    if start_epoch > epochs:
+        print("  existing_checkpoint_already_reached_target_epochs")
+        print(f"  checkpoint={final_checkpoint_path}")
+        print(f"  training_report={report_path}")
+        return
+
+    for epoch in range(start_epoch, epochs + 1):
         start_time = perf_counter()
         model.train()
         running_loss = 0.0
@@ -327,15 +453,23 @@ def run_train(config: PipelineConfig) -> None:
         )
         if epoch % checkpoint_interval == 0:
             epoch_checkpoint = checkpoints_dir / f"epoch_{epoch:03d}.pt"
+            checkpoint_history = list(history)
+            checkpoint_saved = list(saved_checkpoints)
+            checkpoint_saved.append(str(epoch_checkpoint))
             _save_checkpoint(
                 epoch_checkpoint,
                 torch_module=torch,
                 model=model,
+                optimizer=optimizer,
                 model_name=model_name,
                 metrics={
                     "epoch": epoch,
                     "train_loss": avg_loss,
                     "val_metrics": val_metrics,
+                },
+                extra_state={
+                    "history": checkpoint_history,
+                    "saved_checkpoints": checkpoint_saved,
                 },
             )
             saved_checkpoints.append(str(epoch_checkpoint))
@@ -380,6 +514,7 @@ def run_train(config: PipelineConfig) -> None:
         ),
     }
     final_metrics = {
+        "epoch": epochs,
         "validation": history[-1]["val_metrics"] if history else {},
         "neg_test": neg_metrics,
         "score_threshold": score_threshold,
@@ -391,10 +526,14 @@ def run_train(config: PipelineConfig) -> None:
         checkpoint_path,
         torch_module=torch,
         model=model,
+        optimizer=optimizer,
         model_name=model_name,
         metrics=final_metrics,
+        extra_state={
+            "history": history,
+            "saved_checkpoints": saved_checkpoints,
+        },
     )
-    report_path = output_dir / "training_report.json"
     _write_json(
         report_path,
         {
