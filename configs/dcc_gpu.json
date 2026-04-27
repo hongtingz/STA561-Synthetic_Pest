@@ -48,7 +48,7 @@
     "val_annotations": "artifacts/dataset/coco_val.json",
     "neg_test_annotations": "artifacts/dataset/coco_neg_test.json",
     "epochs": 12,
-    "batch_size": 4,
+    "batch_size": 16,
     "learning_rate": 2e-5,
     "weight_decay": 1e-4,
     "pretrained": true,
@@ -64,7 +64,8 @@
     },
     "val_split": 0.2,
     "device": "auto",
-    "num_workers": 4,
+    "num_workers": 8,
+    "resume": true,
     "score_threshold": 0.3,
     "iou_threshold": 0.5,
     "threshold_sweep": [0.3, 0.5, 0.7]
