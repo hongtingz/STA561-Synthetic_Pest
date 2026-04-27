@@ -17,10 +17,11 @@ The project currently supports this workflow:
 render-batch -> convert -> sanity-check -> train -> evaluate -> infer
 ```
 
-The current `train` job targets the built-in Faster R-CNN baseline. The next
-planned model upgrade is a ViT- or DETR-style detector that will reuse the
-same render outputs, COCO export, Slurm structure, and evaluation reports
-rather than introducing a separate data pipeline.
+The current `train` job targets the configured detector in `configs/dcc_gpu.json`.
+The main DCC profile uses `detector_model: "vit"`, which resolves to the
+Hugging Face `hustvl/yolos-tiny` object detector. The same data export,
+Slurm structure, and evaluation reports also support the torchvision
+Faster R-CNN fallback and the optional YOLO comparison path.
 
 ## 2. DCC Environment Assumptions
 
@@ -161,9 +162,11 @@ This stage validates:
 bash scripts/dcc_submit.sh train configs/dcc_gpu.json
 ```
 
-The main built-in detector path is Faster R-CNN using torchvision. This is the
-current baseline used to validate end-to-end execution on DCC before swapping
-in a transformer-based detector.
+The main DCC detector path is the transformer-style `vit` configuration
+(`hustvl/yolos-tiny`). Training writes epoch checkpoints, a final
+`detector.pt`, and `training_report.json`. Faster R-CNN remains available by
+changing `training.detector_model` to
+`fasterrcnn_mobilenet_v3_large_320_fpn`.
 
 ### Step 5: Evaluate The Trained Detector
 
@@ -188,7 +191,7 @@ uv run pest-pipeline infer --config configs/dcc_gpu.json
 After `render-batch`, `convert`, `sanity-check`, `train`, and `evaluate` have
 finished, the generated artifacts can also be reviewed through the notebook:
 
-- [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb)
+- [dcc_pipeline_demo.ipynb](notebooks/dcc_pipeline_demo.ipynb)
 
 This notebook is intentionally read-only with respect to expensive pipeline
 stages. It reads existing outputs from `artifacts/` and is suitable for an
@@ -283,23 +286,25 @@ Notebook demo:
 - Negative-only real kitchen images are used to estimate false positives.
 - Positive evaluation data is still synthetic or synthetic-derived unless future
   real labeled pest imagery is added.
-- YOLO support exists as an optional comparison path; the main documented path is
-  the built-in Faster R-CNN detector.
+- The main documented training path is the `vit` / `hustvl/yolos-tiny`
+  detector in `configs/dcc_gpu.json`.
+- YOLO support exists as an optional comparison path, and Faster R-CNN remains a
+  lightweight fallback.
 
-## 11. Planned ViT Extension
+## 11. Detector Configuration
 
-To better match the course A+ target, the planned next model stage is:
+The main detector stage is:
 
 ```text
 render-batch
 -> convert
 -> sanity-check
--> transformer detector training
+-> ViT/YOLOS-tiny detector training
 -> threshold sweep
 -> evaluation
 ```
 
 The intent is to keep rendering, annotation export, dataset packaging, and DCC
-submission unchanged while replacing only the detector-training module. This
-lets the team compare a ViT-backed detector against the existing Faster R-CNN
-baseline without changing the upstream data-generation pipeline.
+submission unchanged while allowing detector swaps through JSON config. This
+lets the team compare ViT/YOLOS-tiny, Faster R-CNN, and optional YOLO without
+changing the upstream data-generation pipeline.

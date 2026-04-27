@@ -11,15 +11,13 @@ The project currently has:
 - A `uv`-managed Python package under `src/prob_ml/`
 - Config-driven local and DCC execution
 - Manifest-driven batch render preparation
-- Successful local and DCC batch render outputs with frames and annotations
+- Local and DCC-oriented batch render outputs with frames and annotations
 - DCC configs and Slurm job scripts for formal runs
+- COCO/YOLO export, sanity checking, ViT/YOLOS-tiny detector training,
+  evaluation, inference, and optional YOLO comparison entrypoints
 
-The project still needs:
-
-- Final detector training runs on rendered datasets
-- Final inference examples and qualitative prediction figures
-- Evaluation for true detection rate and false positive rate
-- Final interface cleanup between dataset export, detector training, and reporting
+Active result updates are expected to come from the DCC render/train/evaluate
+artifacts as longer jobs complete.
 
 ## Hongting Zhang: Synthetic Data And DCC Pipeline
 
@@ -78,7 +76,6 @@ inputs and evaluation-ready ground truth.
 Primary files:
 
 - `src/prob_ml/dataset.py`
-- future dataset/helper modules under `src/prob_ml/`
 - dataset-related config fields in `configs/*.json`
 - dataset tests under `tests/`
 
@@ -141,7 +138,9 @@ Primary files:
 
 - `src/prob_ml/train.py`
 - `src/prob_ml/infer.py`
-- future model/helper modules under `src/prob_ml/`
+- `src/prob_ml/detector.py`
+- `src/prob_ml/evaluate.py`
+- `src/prob_ml/yolo.py`
 - training-related config fields in `configs/*.json`
 
 Responsibilities:
@@ -188,8 +187,8 @@ Submission-facing deliverables:
 
 ## Shared Dataset Contract
 
-The handoff from Hongting to Russo is batch-render output. The handoff from
-Russo to Shuai Huang should be COCO-style detection data.
+The interface from Hongting to Russo is batch-render output. The interface from
+Russo to Shuai Huang is COCO-style detection data.
 
 Required categories:
 
@@ -278,13 +277,7 @@ uv run pest-pipeline dcc-submit --config configs/dcc_gpu.json --job render-batch
 uv run pest-pipeline convert --config configs/dcc_gpu.json
 ```
 
-3. Shuai Huang starts with a tiny local dataset from:
-
-```text
-artifacts/batch_render*/kitchen_0001/
-```
-
-4. Shuai Huang later switches to:
+3. Shuai Huang trains/evaluates from:
 
 ```text
 artifacts/dataset/coco_train.json
@@ -292,25 +285,25 @@ artifacts/dataset/coco_val.json
 artifacts/dataset/yolo/data.yaml
 ```
 
-5. Russo checks dataset quality:
+4. Russo checks dataset quality:
 
 ```bash
 uv run pest-pipeline sanity-check --config configs/dcc_gpu.json
 ```
 
-6. Shuai Huang trains:
+5. Shuai Huang trains:
 
 ```bash
 uv run pest-pipeline train --config configs/dcc_gpu.json
 ```
 
-7. Shuai Huang evaluates:
+6. Shuai Huang evaluates:
 
 ```bash
 uv run pest-pipeline evaluate --config configs/dcc_gpu.json
 ```
 
-8. Shuai Huang runs example inference:
+7. Shuai Huang runs example inference:
 
 ```bash
 uv run pest-pipeline infer --config configs/dcc_gpu.json
@@ -328,18 +321,15 @@ uv run pest-pipeline train-yolo --config configs/dcc_gpu.json
 The final model must localize and classify pests. A pure image classifier is not
 enough because the project requires bounding boxes.
 
-Reasonable detector options:
+Implemented detector options:
 
-- Faster R-CNN with a lightweight backbone
-- DETR-style detector
-- YOLO-style detector if the dependency footprint stays manageable
-- ViT-backed detector if time allows
+- ViT/YOLOS-tiny through `detector_model: "vit"` in the main DCC config.
+- Faster R-CNN with a lightweight backbone as a config-selectable fallback.
+- YOLO-style detector through optional `pest-pipeline train-yolo`.
 
-The repo now includes a built-in Faster R-CNN path with augmentation, optional
-pretrained weights, and threshold-sweep reporting. YOLO is available as an
-optional comparison path through `pest-pipeline train-yolo`; keep Faster R-CNN
-as the fallback if dependency installation or pretrained-weight downloads are
-unreliable.
+The main `configs/dcc_gpu.json` path uses the transformer detector. Faster
+R-CNN and YOLO remain useful comparison paths if the team wants additional
+baselines.
 
 Use `pest-pipeline sanity-check` before model training to catch bbox, class, and
 split-leakage problems. Use `pest-pipeline evaluate` after training to generate
