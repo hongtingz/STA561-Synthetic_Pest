@@ -13,7 +13,7 @@ def build_sbatch_command(config: PipelineConfig, job_name: str) -> str:
         helper_script = config.repo_root / "scripts" / "dcc_submit.sh"
         return (
             f"PROJECT_ROOT={config.repo_root} "
-            f"bash {helper_script} pipeline {config.path}"
+            f"bash {helper_script} {job_name} {config.path}"
         )
     script_dir = config.section("dcc").get("job_script_dir", "jobs")
     script_path = config.repo_root / script_dir / f"{job_name}.sbatch"

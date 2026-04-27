@@ -34,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
         "plan",
         "render",
         "render-batch",
+        "post-render",
         "convert",
         "sanity-check",
         "train",
@@ -58,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="pipeline",
         choices=[
             "pipeline",
+            "post-render",
             "render",
             "render-batch",
             "convert",
@@ -90,6 +92,17 @@ def run_named_stage(command: str, config) -> None:
         return
     if command == "render-batch":
         run_render_batch(config)
+        return
+    if command == "post-render":
+        pipeline_cfg = config.section("pipeline")
+        stages = pipeline_cfg.get(
+            "post_render_stages",
+            ["convert", "sanity-check", "train", "evaluate"],
+        )
+        if not isinstance(stages, list) or not all(isinstance(stage, str) for stage in stages):
+            raise TypeError("pipeline.post_render_stages must be a JSON array of command names.")
+        for stage in stages:
+            run_named_stage(stage, config)
         return
     if command == "convert":
         run_convert(config)
@@ -133,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {
         "render",
         "render-batch",
+        "post-render",
         "convert",
         "sanity-check",
         "train",

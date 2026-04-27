@@ -29,7 +29,7 @@ if [[ "$JOB_NAME" == "pipeline" ]]; then
     PREV_JOB_ID="$JOB_ID"
   done
 
-  echo "Pipeline submission chain complete. Final job id: ${PREV_JOB_ID}"
+  echo "${JOB_NAME} submission chain complete. Final job id: ${PREV_JOB_ID}"
   exit 0
 fi
 
