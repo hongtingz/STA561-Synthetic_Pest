@@ -39,7 +39,7 @@ class NegativeSplitArtifacts:
 
     split: str
     coco: dict[str, object]
-    image_sources: dict[int, Path]
+    image_sources: dict[int | str, Path]
     manifest: dict[str, object]
 
 
@@ -352,7 +352,7 @@ def _build_negative_split(
     """Build a COCO-style negative-only split with unique image ids."""
     coco = _base_coco(f"Negative-only real kitchen split: {split}")
     manifest_images: list[dict[str, object]] = []
-    image_sources: dict[int, Path] = {}
+    image_sources: dict[int | str, Path] = {}
     next_image_id = start_image_id
 
     for record in records:
@@ -380,6 +380,7 @@ def _build_negative_split(
             }
         )
         image_sources[next_image_id] = photo_path
+        image_sources[record.image_id] = photo_path
         next_image_id += 1
 
     return (
@@ -486,7 +487,7 @@ def _export_positive_yolo(
 def _export_negative_yolo(
     yolo_root: Path,
     manifest: dict[str, object],
-    image_sources: dict[str, Path],
+    image_sources: dict[int | str, Path],
 ) -> str | None:
     images = manifest["images"]
     if not images:
