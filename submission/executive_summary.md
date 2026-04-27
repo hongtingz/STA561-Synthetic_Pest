@@ -50,7 +50,7 @@ The current end-to-end workflow is:
 4. Convert outputs into model-ready datasets.
 5. Train and evaluate a detector.
 
-## Results
+## Results To Date
 
 The synthetic rendering, dataset conversion, sanity checking, detector
 training, checkpoint evaluation, and DCC deployment scaffolding are all in
@@ -60,13 +60,13 @@ place. The repository can:
 - export frame annotations automatically
 - package those annotations into COCO and YOLO datasets
 - preserve real kitchen images with no pests as a separate negative-only split
-- train and evaluate a transformer-style detector
+- train and evaluate a baseline detector
 
-Model training and inference now use a ViT-style object detector by default:
-the config value `vit` maps to the Hugging Face `hustvl/yolos-tiny` detector.
-The same pipeline also keeps Faster R-CNN and YOLO-compatible exports available
-for comparison. This lets us evaluate detector choices without changing the
-synthetic-data generation or annotation pipeline.
+At the current stage, model training and inference use a lightweight Faster
+R-CNN baseline. This baseline is being used to verify that the dataset
+contract, training loop, evaluation logic, and DCC workflow function end to
+end. The next planned model upgrade is a transformer-based detector path that
+more closely matches the course A+ target.
 
 The most important current conclusion is that the synthetic-data pipeline is
 operational and reproducible. It already demonstrates that kitchen-photo-driven
@@ -82,10 +82,13 @@ claims should focus on the pipeline itself, reproducibility, and
 training-readiness of the synthetic data rather than final real-world
 performance.
 
-The most important active result updates are:
+The most important next steps are:
 
-- complete the DCC render and ViT/YOLOS-tiny training runs
-- improve pest asset realism, placement, and scene diversity
+- run larger-scale rendering and training experiments on DCC
+- compare additional detector architectures, including a ViT- or DETR-style
+  transformer detector
+- improve pest asset realism and scene diversity
 - quantify false positives on real kitchen negatives more systematically
-- refresh quantitative tables and qualitative examples from the generated
-  training/evaluation reports
+- expand evaluation with stronger held-out test settings
+- strengthen the final submission with richer qualitative figures and notebook
+  demonstrations
