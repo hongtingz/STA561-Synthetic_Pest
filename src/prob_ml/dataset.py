@@ -33,6 +33,16 @@ class SplitArtifacts:
     missing_backgrounds: list[str]
 
 
+@dataclass
+class NegativeSplitArtifacts:
+    """COCO-style negative-only split bundle."""
+
+    split: str
+    coco: dict[str, object]
+    image_sources: dict[int, Path]
+    manifest: dict[str, object]
+
+
 def _resolve_path(config: PipelineConfig, relative_path: str) -> Path:
     return (config.repo_root / relative_path).resolve()
 
@@ -312,6 +322,86 @@ def _build_negative_only_manifest(
     return manifest, coco, image_sources
 
 
+def _split_negative_records(
+    config: PipelineConfig,
+    records: list[KitchenPhotoRecord],
+) -> tuple[list[KitchenPhotoRecord], list[KitchenPhotoRecord]]:
+    """Split real negative kitchens into train negatives and held-out neg_test."""
+    if not records:
+        return [], []
+
+    training = config.section("training")
+    neg_train_fraction = float(training.get("real_negative_train_fraction", 0.0))
+    neg_train_fraction = max(0.0, min(neg_train_fraction, 0.95))
+    if neg_train_fraction <= 0.0 or len(records) < 2:
+        return [], list(records)
+
+    ordered = sorted(records, key=lambda record: record.image_id)
+    neg_train_count = int(round(len(ordered) * neg_train_fraction))
+    neg_train_count = max(1, min(neg_train_count, len(ordered) - 1))
+    return ordered[:neg_train_count], ordered[neg_train_count:]
+
+
+def _build_negative_split(
+    records: list[KitchenPhotoRecord],
+    repo_root: Path,
+    *,
+    split: str,
+    start_image_id: int,
+) -> tuple[NegativeSplitArtifacts, int]:
+    """Build a COCO-style negative-only split with unique image ids."""
+    coco = _base_coco(f"Negative-only real kitchen split: {split}")
+    manifest_images: list[dict[str, object]] = []
+    image_sources: dict[int, Path] = {}
+    next_image_id = start_image_id
+
+    for record in records:
+        photo_path = record.photo_path.resolve()
+        if not photo_path.exists():
+            raise FileNotFoundError(f"Negative holdout image not found: {photo_path}")
+        image_width, image_height = _load_image_size(photo_path)
+        relative_path = _to_repo_relative(photo_path, repo_root)
+        manifest_images.append(
+            {
+                "image_id": record.image_id,
+                "file_name": relative_path,
+                "width": image_width,
+                "height": image_height,
+            }
+        )
+        coco["images"].append(
+            {
+                "id": next_image_id,
+                "file_name": relative_path,
+                "width": image_width,
+                "height": image_height,
+                "background_image_id": record.image_id,
+                "background_split": split,
+            }
+        )
+        image_sources[next_image_id] = photo_path
+        next_image_id += 1
+
+    return (
+        NegativeSplitArtifacts(
+            split=split,
+            coco=coco,
+            image_sources=image_sources,
+            manifest={"split": split, "images": manifest_images},
+        ),
+        next_image_id,
+    )
+
+
+def _append_negative_train_images(
+    train_artifacts: SplitArtifacts,
+    negative_train: NegativeSplitArtifacts,
+) -> None:
+    """Append real negative kitchen images into the training COCO split."""
+    train_artifacts.coco["images"].extend(negative_train.coco["images"])
+    train_artifacts.image_sources.update(negative_train.image_sources)
+
+
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
@@ -380,7 +470,10 @@ def _export_positive_yolo(
         for image in artifacts.coco["images"]:
             image_id = int(image["id"])
             source_path = artifacts.image_sources[image_id]
-            basename = f"{image['background_image_id']}_frame_{int(image['frame_index']):05d}"
+            if "frame_index" in image:
+                basename = f"{image['background_image_id']}_frame_{int(image['frame_index']):05d}"
+            else:
+                basename = f"{image['background_image_id']}_neg_{Path(str(image['file_name'])).stem}"
             image_target = images_dir / f"{basename}{source_path.suffix.lower()}"
             label_target = labels_dir / f"{basename}.txt"
             _link_or_copy(source_path, image_target)
@@ -480,10 +573,28 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
         )
 
     negative_records = records_by_split.get("neg_test", [])
-    negative_manifest, negative_coco, negative_sources = _build_negative_only_manifest(
+    negative_train_records, negative_holdout_records = _split_negative_records(
+        config,
         negative_records,
-        config.repo_root,
     )
+
+    negative_train_artifacts, next_image_id = _build_negative_split(
+        negative_train_records,
+        config.repo_root,
+        split="neg_train",
+        start_image_id=next_image_id,
+    )
+    negative_holdout_artifacts, next_image_id = _build_negative_split(
+        negative_holdout_records,
+        config.repo_root,
+        split="neg_test",
+        start_image_id=next_image_id,
+    )
+    if negative_train_artifacts.coco["images"]:
+        _append_negative_train_images(
+            positive_artifacts["train"],
+            negative_train_artifacts,
+        )
 
     combined_coco = _base_coco("Combined rendered pest detection dataset")
     combined_coco["images"] = [
@@ -507,18 +618,24 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
         _write_json(split_path, artifacts.coco)
         outputs[f"coco_{split}"] = split_path
 
+    neg_train_manifest_path = output_root / "neg_train_images.json"
+    neg_train_coco_path = output_root / "coco_neg_train.json"
     neg_manifest_path = output_root / "neg_test_images.json"
     neg_coco_path = output_root / "coco_neg_test.json"
-    _write_json(neg_manifest_path, negative_manifest)
-    _write_json(neg_coco_path, negative_coco)
+    _write_json(neg_train_manifest_path, negative_train_artifacts.manifest)
+    _write_json(neg_train_coco_path, negative_train_artifacts.coco)
+    _write_json(neg_manifest_path, negative_holdout_artifacts.manifest)
+    _write_json(neg_coco_path, negative_holdout_artifacts.coco)
+    outputs["neg_train_manifest"] = neg_train_manifest_path
+    outputs["coco_neg_train"] = neg_train_coco_path
     outputs["neg_test_manifest"] = neg_manifest_path
     outputs["coco_neg_test"] = neg_coco_path
 
     yolo_yaml = _write_yolo_dataset(
         output_root,
         positive_artifacts,
-        negative_manifest,
-        negative_sources,
+        negative_holdout_artifacts.manifest,
+        negative_holdout_artifacts.image_sources,
     )
     outputs["yolo_data"] = yolo_yaml
 
@@ -531,19 +648,27 @@ def convert_batch_render_outputs(config: PipelineConfig) -> dict[str, Path]:
         "splits": {},
     }
     for split, artifacts in positive_artifacts.items():
-        summary["splits"][split] = {
+        split_summary = {
             "backgrounds_with_renders": len(
                 {
                     str(image["background_image_id"])
                     for image in artifacts.coco["images"]
+                    if "frame_index" in image
                 }
             ),
             "frames": len(artifacts.coco["images"]),
             "annotations": len(artifacts.coco["annotations"]),
             "missing_backgrounds": artifacts.missing_backgrounds,
         }
+        if split == "train":
+            split_summary["negative_train_images"] = len(negative_train_artifacts.coco["images"])
+        summary["splits"][split] = split_summary
+    summary["splits"]["neg_train"] = {
+        "backgrounds": len(negative_train_artifacts.manifest["images"]),
+        "annotations": 0,
+    }
     summary["splits"]["neg_test"] = {
-        "backgrounds": len(negative_manifest["images"]),
+        "backgrounds": len(negative_holdout_artifacts.manifest["images"]),
         "annotations": 0,
     }
     summary_path = output_root / "dataset_summary.json"

@@ -63,6 +63,7 @@
       }
     },
     "val_split": 0.2,
+    "real_negative_train_fraction": 0.5,
     "device": "auto",
     "num_workers": 8,
     "resume": true,

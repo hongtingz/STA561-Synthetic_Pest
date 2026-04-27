@@ -116,6 +116,16 @@ def _resolve_resume_checkpoint_path(
     return None
 
 
+def _inputs_newer_than_reference(inputs: list[Path], reference: Path) -> bool:
+    if not reference.exists():
+        return False
+    reference_mtime = reference.stat().st_mtime
+    for path in inputs:
+        if path.exists() and path.stat().st_mtime > reference_mtime:
+            return True
+    return False
+
+
 def _build_loader(dataset, *, batch_size: int, shuffle: bool, num_workers: int):
     from torch.utils.data import DataLoader
 
@@ -350,12 +360,19 @@ def run_train(config: PipelineConfig) -> None:
     history = list(existing_report.get("history", []))
     saved_checkpoints = list(existing_report.get("saved_checkpoints", []))
     start_epoch = 1
+    dataset_inputs = [train_annotations, val_annotations, neg_annotations]
+    dataset_changed_since_report = _inputs_newer_than_reference(dataset_inputs, report_path)
+    if dataset_changed_since_report:
+        print("  dataset_changed_since_previous_training_report=true")
+        history = []
+        saved_checkpoints = []
     existing_history_last_epoch = 0
     if history and isinstance(history[-1], dict):
         existing_history_last_epoch = int(history[-1].get("epoch", 0) or 0)
     final_checkpoint_path = output_dir / "detector.pt"
     if (
         resume_training
+        and not dataset_changed_since_report
         and existing_history_last_epoch >= epochs
         and final_checkpoint_path.exists()
     ):
@@ -364,7 +381,7 @@ def run_train(config: PipelineConfig) -> None:
         print(f"  training_report={report_path}")
         return
 
-    if resume_training:
+    if resume_training and not dataset_changed_since_report:
         explicit_resume_path = (
             _resolve_path(config, resume_checkpoint_raw)
             if resume_checkpoint_raw not in {None, ""}
