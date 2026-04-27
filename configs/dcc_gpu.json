@@ -47,7 +47,7 @@
     "train_annotations": "artifacts/dataset/coco_train.json",
     "val_annotations": "artifacts/dataset/coco_val.json",
     "neg_test_annotations": "artifacts/dataset/coco_neg_test.json",
-    "epochs": 12,
+    "epochs": 20,
     "batch_size": 16,
     "learning_rate": 2e-5,
     "weight_decay": 1e-4,
@@ -63,13 +63,13 @@
       }
     },
     "val_split": 0.2,
-    "real_negative_train_fraction": 0.5,
+    "real_negative_train_fraction": 0.7,
     "device": "auto",
     "num_workers": 8,
     "resume": true,
     "score_threshold": 0.3,
     "iou_threshold": 0.5,
-    "threshold_sweep": [0.3, 0.5, 0.7]
+    "threshold_sweep": [0.3, 0.5, 0.7, 0.8, 0.85, 0.9, 0.95]
   },
   "yolo": {
     "data_yaml": "artifacts/dataset/yolo/data.yaml",
@@ -89,7 +89,7 @@
   "evaluation": {
     "output_dir": "artifacts/reports/evaluation",
     "checkpoint": "artifacts/models/detector/detector.pt",
-    "thresholds": [0.3, 0.5, 0.7],
+    "thresholds": [0.3, 0.5, 0.7, 0.8, 0.85, 0.9, 0.95],
     "iou_threshold": 0.5,
     "max_failure_examples": 12
   },
