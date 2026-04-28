@@ -330,7 +330,10 @@ def _split_negative_records(
     if not records:
         return [], []
 
-    training = config.section("training")
+    try:
+        training = config.section("training")
+    except KeyError:
+        training = {}
     neg_train_fraction = float(training.get("real_negative_train_fraction", 0.0))
     neg_train_fraction = max(0.0, min(neg_train_fraction, 0.95))
     if neg_train_fraction <= 0.0 or len(records) < 2:
