@@ -1,23 +1,28 @@
 # Submission Documents
 
-This directory contains the prose drafts that map directly to the required
+This directory contains the Markdown sources that map directly to the required
 submission structure in `PROJECT_SPEC.md`.
 
 Files:
 
 - `executive_summary.md`
-  Draft for the two-page executive summary.
+  Source for the two-page executive summary.
 - `faq.md`
-  Draft for the 2-5 page FAQ.
+  Source for the 2-5 page FAQ.
 - `technical_appendix.md`
-  Draft for the technical appendix.
+  Source for the technical appendix.
+- `results/`
+  Lightweight current DCC result snapshot: JSON reports plus representative
+  images. Large `.pt` checkpoints are intentionally not committed.
 
-Recommended workflow:
+Recommended update workflow:
 
-1. Continue editing these Markdown drafts until the content is stable.
-2. When the team is ready for final formatting, convert each draft into the
-   final LaTeX source owned by the teammate handling typesetting.
-3. Export the final submission as PDF.
+1. Update the Markdown sources when DCC training/evaluation artifacts change.
+2. Regenerate the root-level PDFs (`summary.pdf`, `FAQ.pdf`,
+   `technical_appendix.pdf`).
+3. Refresh `results/` with small JSON reports and selected images if a newer
+   DCC run supersedes the current snapshot.
+4. Keep generated model checkpoints and bulk rendered frames out of git.
 
 Supporting materials elsewhere in the repository:
 
@@ -36,7 +41,7 @@ Supporting materials elsewhere in the repository:
 - `notebooks/dcc_pipeline_demo.ipynb`
   Lightweight notebook demo for reviewing generated DCC artifacts.
 
-The technical appendix now also documents: the kitchen manifest CSV schema,
+The technical appendix documents: the kitchen manifest CSV schema,
 module-to-file map, exact default hyperparameters from `dcc_gpu.json`, metric
-definitions in code, and the difference between core dependencies and optional
-`ultralytics` / planned `transformers` usage.
+definitions in code, ViT/YOLOS-tiny training, Faster R-CNN fallback behavior,
+and optional `ultralytics` usage.

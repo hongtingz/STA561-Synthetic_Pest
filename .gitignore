@@ -19,6 +19,8 @@ artifacts/
 data/
 logs/
 tmp/
+prob_ml_results/
+*.pt
 
 # Large local 3D assets. Keep folder docs and credits in git, but do not commit
 # downloaded model/texture binaries.

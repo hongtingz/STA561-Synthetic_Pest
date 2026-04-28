@@ -1,0 +1,256 @@
+{
+  "checkpoint": "/work/hz365/prob_ml_artifacts/models/detector/detector.pt",
+  "model_name": "hustvl/yolos-tiny",
+  "thresholds": [
+    0.3,
+    0.5,
+    0.7
+  ],
+  "iou_threshold": 0.5,
+  "splits": {
+    "val": {
+      "split": "val",
+      "images": 300,
+      "threshold_table": {
+        "0.30": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 2562,
+          "matched_boxes": 823,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.9144444444444444,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 296,
+            "rat": 286,
+            "cockroach": 241
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9866666666666667,
+            "rat": 0.9533333333333334,
+            "cockroach": 0.8033333333333333
+          }
+        },
+        "0.50": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 2073,
+          "matched_boxes": 807,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.8966666666666666,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 293,
+            "rat": 280,
+            "cockroach": 234
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9766666666666667,
+            "rat": 0.9333333333333333,
+            "cockroach": 0.78
+          }
+        },
+        "0.70": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 1598,
+          "matched_boxes": 750,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.8333333333333334,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 280,
+            "rat": 271,
+            "cockroach": 199
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9333333333333333,
+            "rat": 0.9033333333333333,
+            "cockroach": 0.6633333333333333
+          }
+        }
+      },
+      "failure_examples": [
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00106.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/000.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00151.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/001.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00226.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/002.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00391.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/003.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00406.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/004.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00601.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/005.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0021/frames/frame_00766.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/006.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0022/frames/frame_00196.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/007.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0022/frames/frame_00211.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/008.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0022/frames/frame_00226.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/009.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0022/frames/frame_00571.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/010.jpg"
+        },
+        {
+          "type": "false_negative",
+          "image": "/work/hz365/prob_ml_artifacts/batch_render/kitchen_0022/frames/frame_00646.png",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/val/011.jpg"
+        }
+      ]
+    },
+    "neg_test": {
+      "split": "neg_test",
+      "images": 709,
+      "threshold_table": {
+        "0.30": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 1317,
+          "matched_boxes": 0,
+          "false_positive_images": 423,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.5966149506346967,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        },
+        "0.50": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 586,
+          "matched_boxes": 0,
+          "false_positive_images": 269,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.37940761636107195,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        },
+        "0.70": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 178,
+          "matched_boxes": 0,
+          "false_positive_images": 126,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.1777150916784203,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        }
+      },
+      "failure_examples": [
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N09m.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/000.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190016.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/001.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190017.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/002.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190018.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/003.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190023.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/004.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190024.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/005.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190040.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/006.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190041.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/007.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N190047.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/008.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N29m.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/009.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N364000.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/010.jpg"
+        },
+        {
+          "type": "false_positive",
+          "image": "/work/hz365/kitchen_data/raw/kitchen/images/N364001.jpg",
+          "visualization": "/work/hz365/prob_ml_artifacts/reports/evaluation/failure_examples/neg_test/011.jpg"
+        }
+      ]
+    }
+  }
+}

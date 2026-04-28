@@ -1,12 +1,11 @@
 # Prob ML Pest Pipeline
 
-Rebuilt foundation for the STA 561 pest-detection final project, with the repo
-organized around the A+ target:
+End-to-end STA 561 pest-detection pipeline organized around the A+ target:
 
 1. Take a kitchen photo as input
 2. Generate labeled synthetic pest video in Blender
 3. Export frame-level annotations
-4. Train a detector baseline
+4. Train transformer and detector baselines
 5. Run the pipeline reproducibly on the Duke compute cluster
 
 ## Design Goals
@@ -42,26 +41,28 @@ three pest families; can mux MP4 the same way if `ffmpeg` is available. Rebuild 
 frames only: `uv run python demo/frames_to_video.py` (expects `artifacts/render/frames/`
 and 5-digit `frame_%05d.png` names from the main renderer).
 
-Model training and inference now include a lightweight torchvision Faster R-CNN
-baseline with lightweight augmentation, optional pretrained weights, and
-threshold-sweep TDR/FPR reporting. The converter also writes YOLO labels, and
-`pest-pipeline train-yolo` provides an optional Ultralytics path for an
-additional detector baseline. Dataset sanity checking and checkpoint evaluation
-now produce report artifacts and visual galleries for final write-up evidence.
-Final experiments and result selection are still in progress. The current repo provides:
+Model training and inference now use a transformer-style detector path by
+default: `vit` maps to the Hugging Face `hustvl/yolos-tiny` object detector.
+The same training, evaluation, and inference entrypoints also support a
+torchvision Faster R-CNN fallback, and the converter writes YOLO labels for an
+optional Ultralytics comparison. Dataset sanity checking and checkpoint
+evaluation produce structured reports and visual galleries for review.
+
+The latest lightweight DCC result snapshot is included under
+[`submission/results/`](submission/results/). It keeps the machine-readable
+reports and representative visualizations in git while leaving large detector
+checkpoints outside the repository.
+
+The current repo provides:
 
 - stable module boundaries
 - consistent config loading
 - directory conventions
 - DCC job wiring
 
-## Planned ViT Path
+## Detector Path
 
-To align more closely with the course A+ target, the next model-stage upgrade
-is planned as a transformer-based detector pipeline rather than stopping at the
-current Faster R-CNN baseline.
-
-The intended progression is:
+The implemented detector progression is:
 
 ```text
 kitchen photo
@@ -69,16 +70,16 @@ kitchen photo
 -> frame annotations
 -> COCO export
 -> sanity-check
--> Faster R-CNN baseline training
--> ViT/transformer detector training
+-> ViT/YOLOS-tiny detector training
 -> threshold selection
 -> evaluation on validation + neg_test
 ```
 
-Faster R-CNN is the current engineering baseline used to verify that the data,
-training, and DCC workflow run end to end. The planned next stage is to plug a
-ViT-backed detector into the same dataset and evaluation contract so that model
-upgrades do not require changing the rendering or cluster orchestration layers.
+The DCC configs default to `detector_model: "vit"`, which resolves to
+`hustvl/yolos-tiny`. Faster R-CNN remains available through
+`detector_model: "fasterrcnn_mobilenet_v3_large_320_fpn"` for a lightweight
+engineering baseline, and `pest-pipeline train-yolo` remains available as an
+optional YOLO comparison path.
 
 ## Quick Start
 
@@ -97,13 +98,13 @@ available for local CPU development, and `configs/dcc_gpu_smoke.json` is kept
 only for short validation runs.
 
 For the instructor-facing reproduction and deployment description, see
-[DCC_DEPLOYMENT.md](/Users/hongting/projects/prob_ml/DCC_DEPLOYMENT.md).
+[DCC_DEPLOYMENT.md](DCC_DEPLOYMENT.md).
 
 For the original course project description in Markdown form, see
-[PROJECT_SPEC.md](/Users/hongting/projects/prob_ml/PROJECT_SPEC.md).
+[PROJECT_SPEC.md](PROJECT_SPEC.md).
 
 For a lightweight instructor-facing notebook that reads existing DCC artifacts,
-see [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb).
+see [dcc_pipeline_demo.ipynb](notebooks/dcc_pipeline_demo.ipynb).
 
 ## Repository Layout
 
@@ -176,24 +177,25 @@ positive `test` split must come from held-out rendered or composited data.
   Validates COCO split integrity, bbox bounds, class counts, split leakage, and
   writes annotation overlay images under `artifacts/reports/`.
 - `pest-pipeline train --config ...`
-  Trains the built-in Faster R-CNN detector baseline on exported COCO data and
-  writes a checkpoint plus `training_report.json`, including threshold-sweep
-  summaries for TDR/FPR selection.
+  Trains the configured detector on exported COCO data. The DCC config defaults
+  to `vit` / `hustvl/yolos-tiny`; Faster R-CNN remains available by changing
+  `training.detector_model`.
 - `pest-pipeline evaluate --config ...`
   Loads a trained detector checkpoint and writes a unified validation/negative
   holdout report plus false-positive/false-negative example visualizations.
 - `pest-pipeline train-yolo --config ...`
   Optionally trains a YOLO detector from `artifacts/dataset/yolo/data.yaml`.
-  This requires installing `ultralytics`; the built-in Faster R-CNN path does
-  not require it.
+  This requires installing `ultralytics`; the built-in `train` path does not
+  require it.
 - `pest-pipeline infer --config ...`
   Loads a detector checkpoint, runs single-image inference, and writes a
   visualization plus JSON predictions.
 - `pest-pipeline pipeline --config ...`
-  Reserved for the full end-to-end local pipeline.
+  Runs the full local pipeline sequence in one process.
 - `pest-pipeline dcc-submit --config ... --job pipeline`
-  Prints the `sbatch` command for DCC execution. Use `--job train-yolo` for
-  the optional YOLO baseline.
+  Submits a Slurm job. The helper script `scripts/dcc_submit.sh pipeline
+  configs/dcc_gpu.json` chains `render-batch`, `convert`, `sanity-check`,
+  `train`, and `evaluate` with Slurm dependencies.
 
 ## DCC Direction
 
@@ -208,7 +210,7 @@ The cluster-facing workflow is designed around:
 
 The repository includes a lightweight DCC-oriented notebook demo:
 
-- [dcc_pipeline_demo.ipynb](/Users/hongting/projects/prob_ml/notebooks/dcc_pipeline_demo.ipynb)
+- [dcc_pipeline_demo.ipynb](notebooks/dcc_pipeline_demo.ipynb)
 
 It is intended to be opened after `render-batch`, `convert`, `sanity-check`,
 `train`, and `evaluate` have already produced artifacts. The notebook does not
@@ -219,10 +221,22 @@ launch expensive jobs; it reads existing outputs and displays:
 - dataset summary artifacts
 - evaluation metrics and example failure cases
 
-## Next Build Steps
+## Active Result Updates
 
-1. Scale batch rendering and confirm output quality across more kitchen backgrounds
-2. Run `sanity-check` before training and fix any dataset/report errors
-3. Run full DCC detector training and confirm checkpoint/report artifacts
-4. Run `evaluate` plus the optional YOLO baseline if dependencies are available
-5. Tighten end-to-end docs and final metric tables
+The current DCC snapshot demonstrates the full render/convert/sanity/train/
+evaluate flow:
+
+- dataset sanity status: `pass`
+- training set: 1,200 rendered frames with 3,600 boxes
+- validation set: 300 rendered frames with 900 boxes
+- negative holdout: 709 real no-pest kitchen images
+- detector: ViT/YOLOS-tiny (`hustvl/yolos-tiny`)
+- validation TDR: 91.44% at threshold 0.30, 83.33% at threshold 0.70
+- real-negative FPR: 59.66% at threshold 0.30, 17.77% at threshold 0.70
+
+These results show that the end-to-end pipeline is operational and that the
+detector can clear the 80% detection target on rendered validation data. The
+main remaining model-quality issue is real-kitchen false-positive control:
+the current real-negative FPR does not yet meet the <5% target, so further
+threshold calibration, rendering realism, and domain adaptation are the next
+model-improvement priorities.

@@ -1,0 +1,33 @@
+{
+  "manifest": "/work/hz365/kitchen_data/raw/kitchen/metadata/manifest.csv",
+  "coco_category_ids": {
+    "mouse": 1,
+    "rat": 2,
+    "cockroach": 3
+  },
+  "yolo_category_ids": {
+    "mouse": 0,
+    "rat": 1,
+    "cockroach": 2
+  },
+  "frame_stride": 15,
+  "max_frames_per_background": 120,
+  "splits": {
+    "train": {
+      "backgrounds_with_renders": 20,
+      "frames": 1200,
+      "annotations": 3600,
+      "missing_backgrounds": []
+    },
+    "val": {
+      "backgrounds_with_renders": 5,
+      "frames": 300,
+      "annotations": 900,
+      "missing_backgrounds": []
+    },
+    "neg_test": {
+      "backgrounds": 709,
+      "annotations": 0
+    }
+  }
+}

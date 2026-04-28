@@ -1,0 +1,533 @@
+{
+  "model_name": "vit",
+  "train_annotations": "/work/hz365/prob_ml_artifacts/dataset/coco_train.json",
+  "val_annotations": "/work/hz365/prob_ml_artifacts/dataset/coco_val.json",
+  "neg_test_annotations": "/work/hz365/prob_ml_artifacts/dataset/coco_neg_test.json",
+  "epochs": 12,
+  "batch_size": 16,
+  "learning_rate": 2e-05,
+  "weight_decay": 0.0001,
+  "pretrained": true,
+  "checkpoint_interval": 3,
+  "checkpoint_dir": "/work/hz365/prob_ml_artifacts/models/detector/checkpoints",
+  "saved_checkpoints": [
+    "/work/hz365/prob_ml_artifacts/models/detector/checkpoints/epoch_003.pt",
+    "/work/hz365/prob_ml_artifacts/models/detector/checkpoints/epoch_006.pt",
+    "/work/hz365/prob_ml_artifacts/models/detector/checkpoints/epoch_009.pt",
+    "/work/hz365/prob_ml_artifacts/models/detector/checkpoints/epoch_012.pt"
+  ],
+  "transformer_image_size": 640,
+  "augmentation": {
+    "horizontal_flip_probability": 0.5,
+    "color_jitter": {
+      "brightness": 0.2,
+      "contrast": 0.2,
+      "saturation": 0.1
+    }
+  },
+  "dataset_counts": {
+    "train_images": 1200,
+    "val_images": 300,
+    "neg_test_images": 709
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 2.3120962619781493,
+      "seconds": 54.769,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 0,
+        "matched_boxes": 0,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.0,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {},
+        "per_class_detection_rate": {
+          "mouse": 0.0,
+          "rat": 0.0,
+          "cockroach": 0.0
+        }
+      }
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.4137880945205687,
+      "seconds": 47.367,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 14,
+        "matched_boxes": 11,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.012222222222222223,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "rat": 11
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.0,
+          "rat": 0.03666666666666667,
+          "cockroach": 0.0
+        }
+      }
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.1720572900772095,
+      "seconds": 48.066,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 1026,
+        "matched_boxes": 256,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.28444444444444444,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "rat": 217,
+          "mouse": 5,
+          "cockroach": 34
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.016666666666666666,
+          "rat": 0.7233333333333334,
+          "cockroach": 0.11333333333333333
+        }
+      }
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.9839381353060405,
+      "seconds": 48.276,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 3876,
+        "matched_boxes": 695,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.7722222222222223,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "rat": 300,
+          "mouse": 220,
+          "cockroach": 175
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.7333333333333333,
+          "rat": 1.0,
+          "cockroach": 0.5833333333333334
+        }
+      }
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.8778484614690145,
+      "seconds": 47.69,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 3540,
+        "matched_boxes": 790,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.8777777777777778,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 274,
+          "rat": 300,
+          "cockroach": 216
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9133333333333333,
+          "rat": 1.0,
+          "cockroach": 0.72
+        }
+      }
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.7625124875704448,
+      "seconds": 47.527,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 3918,
+        "matched_boxes": 798,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.8866666666666667,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 286,
+          "rat": 298,
+          "cockroach": 214
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9533333333333334,
+          "rat": 0.9933333333333333,
+          "cockroach": 0.7133333333333334
+        }
+      }
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.6984890953699747,
+      "seconds": 48.395,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 5210,
+        "matched_boxes": 832,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.9244444444444444,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "rat": 300,
+          "mouse": 280,
+          "cockroach": 252
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9333333333333333,
+          "rat": 1.0,
+          "cockroach": 0.84
+        }
+      }
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.6508655873934428,
+      "seconds": 47.336,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 3635,
+        "matched_boxes": 813,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.9033333333333333,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 281,
+          "rat": 275,
+          "cockroach": 257
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9366666666666666,
+          "rat": 0.9166666666666666,
+          "cockroach": 0.8566666666666667
+        }
+      }
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.6087190222740173,
+      "seconds": 47.398,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 3452,
+        "matched_boxes": 826,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.9177777777777778,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 285,
+          "rat": 290,
+          "cockroach": 251
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.95,
+          "rat": 0.9666666666666667,
+          "cockroach": 0.8366666666666667
+        }
+      }
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.5731440122922261,
+      "seconds": 47.584,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 2977,
+        "matched_boxes": 844,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.9377777777777778,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 293,
+          "rat": 298,
+          "cockroach": 253
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9766666666666667,
+          "rat": 0.9933333333333333,
+          "cockroach": 0.8433333333333334
+        }
+      }
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.5459663267930349,
+      "seconds": 48.341,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 2918,
+        "matched_boxes": 855,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.95,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 295,
+          "rat": 296,
+          "cockroach": 264
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9833333333333333,
+          "rat": 0.9866666666666667,
+          "cockroach": 0.88
+        }
+      }
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.5365930449962616,
+      "seconds": 47.719,
+      "val_metrics": {
+        "evaluated_images": 300,
+        "ground_truth_boxes": 900,
+        "predicted_boxes": 2562,
+        "matched_boxes": 823,
+        "false_positive_images": 0,
+        "true_detection_rate": 0.9144444444444444,
+        "false_positive_rate": 0.0,
+        "per_class_ground_truth": {
+          "mouse": 300,
+          "rat": 300,
+          "cockroach": 300
+        },
+        "per_class_matched": {
+          "mouse": 296,
+          "rat": 286,
+          "cockroach": 241
+        },
+        "per_class_detection_rate": {
+          "mouse": 0.9866666666666667,
+          "rat": 0.9533333333333334,
+          "cockroach": 0.8033333333333333
+        }
+      }
+    }
+  ],
+  "final_metrics": {
+    "epoch": 12,
+    "validation": {
+      "evaluated_images": 300,
+      "ground_truth_boxes": 900,
+      "predicted_boxes": 2562,
+      "matched_boxes": 823,
+      "false_positive_images": 0,
+      "true_detection_rate": 0.9144444444444444,
+      "false_positive_rate": 0.0,
+      "per_class_ground_truth": {
+        "mouse": 300,
+        "rat": 300,
+        "cockroach": 300
+      },
+      "per_class_matched": {
+        "mouse": 296,
+        "rat": 286,
+        "cockroach": 241
+      },
+      "per_class_detection_rate": {
+        "mouse": 0.9866666666666667,
+        "rat": 0.9533333333333334,
+        "cockroach": 0.8033333333333333
+      }
+    },
+    "neg_test": {
+      "evaluated_images": 709,
+      "ground_truth_boxes": 0,
+      "predicted_boxes": 1317,
+      "matched_boxes": 0,
+      "false_positive_images": 423,
+      "true_detection_rate": 0.0,
+      "false_positive_rate": 0.5966149506346967,
+      "per_class_ground_truth": {},
+      "per_class_matched": {},
+      "per_class_detection_rate": {}
+    },
+    "score_threshold": 0.3,
+    "iou_threshold": 0.5,
+    "threshold_sweep": {
+      "validation": {
+        "0.30": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 2562,
+          "matched_boxes": 823,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.9144444444444444,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 296,
+            "rat": 286,
+            "cockroach": 241
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9866666666666667,
+            "rat": 0.9533333333333334,
+            "cockroach": 0.8033333333333333
+          }
+        },
+        "0.50": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 2073,
+          "matched_boxes": 807,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.8966666666666666,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 293,
+            "rat": 280,
+            "cockroach": 234
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9766666666666667,
+            "rat": 0.9333333333333333,
+            "cockroach": 0.78
+          }
+        },
+        "0.70": {
+          "evaluated_images": 300,
+          "ground_truth_boxes": 900,
+          "predicted_boxes": 1598,
+          "matched_boxes": 750,
+          "false_positive_images": 0,
+          "true_detection_rate": 0.8333333333333334,
+          "false_positive_rate": 0.0,
+          "per_class_ground_truth": {
+            "mouse": 300,
+            "rat": 300,
+            "cockroach": 300
+          },
+          "per_class_matched": {
+            "mouse": 280,
+            "rat": 271,
+            "cockroach": 199
+          },
+          "per_class_detection_rate": {
+            "mouse": 0.9333333333333333,
+            "rat": 0.9033333333333333,
+            "cockroach": 0.6633333333333333
+          }
+        }
+      },
+      "neg_test": {
+        "0.30": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 1317,
+          "matched_boxes": 0,
+          "false_positive_images": 423,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.5966149506346967,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        },
+        "0.50": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 586,
+          "matched_boxes": 0,
+          "false_positive_images": 269,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.37940761636107195,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        },
+        "0.70": {
+          "evaluated_images": 709,
+          "ground_truth_boxes": 0,
+          "predicted_boxes": 178,
+          "matched_boxes": 0,
+          "false_positive_images": 126,
+          "true_detection_rate": 0.0,
+          "false_positive_rate": 0.1777150916784203,
+          "per_class_ground_truth": {},
+          "per_class_matched": {},
+          "per_class_detection_rate": {}
+        }
+      }
+    }
+  },
+  "checkpoint": "/work/hz365/prob_ml_artifacts/models/detector/detector.pt"
+}
